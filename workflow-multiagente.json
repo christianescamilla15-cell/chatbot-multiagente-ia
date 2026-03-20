@@ -1,0 +1,305 @@
+{
+  "name": "Chatbot Multiagente — Atención al Cliente",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "🌐 Webhook Entrada",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 400],
+      "webhookId": "chatbot-webhook-001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normaliza el mensaje independientemente del canal de origen\nconst body = $input.first().json;\n\nlet canal = 'web';\nlet mensaje = '';\nlet usuarioId = '';\nlet nombreUsuario = 'Usuario';\nlet chatId = '';\n\n// Detectar canal\nif (body.message && body.message.text) {\n  // Telegram\n  canal = 'telegram';\n  mensaje = body.message.text;\n  usuarioId = String(body.message.from.id);\n  nombreUsuario = body.message.from.first_name || 'Usuario';\n  chatId = String(body.message.chat.id);\n} else if (body.Body && body.From) {\n  // WhatsApp (Twilio)\n  canal = 'whatsapp';\n  mensaje = body.Body;\n  usuarioId = body.From;\n  nombreUsuario = body.ProfileName || 'Usuario';\n  chatId = body.From;\n} else if (body.message && body.userId) {\n  // Web\n  canal = 'web';\n  mensaje = body.message;\n  usuarioId = body.userId || 'web-user';\n  nombreUsuario = body.userName || 'Usuario';\n  chatId = body.userId;\n}\n\nreturn [{\n  json: {\n    canal,\n    mensaje,\n    usuarioId,\n    nombreUsuario,\n    chatId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node-normalizer",
+      "name": "🔄 Normalizador de Canal",
+      "type": "n8n-nodes-base.code",
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 100,\n  system: `Eres un clasificador de intenciones para un sistema de atención al cliente.\\n\\nTu ÚNICA tarea es responder con UNA sola palabra según la intención del usuario:\\n\\n- VENTAS → preguntas sobre planes, precios, demo, contratar, prueba gratuita\\n- SOPORTE → problemas técnicos, errores, no funciona, cómo usar, configuración\\n- FACTURACION → facturas, cobros, pagos, reembolsos, cancelar suscripción\\n- ESCALAMIENTO → queja grave, hablar con humano, muy enojado, problema urgente\\n- GENERAL → saludos, agradecimientos, otras consultas\\n\\nResponde SOLO con una de estas palabras, sin explicación.`,\n  messages: [{ role: 'user', content: $json.mensaje }]\n}) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-classifier",
+      "name": "🧠 Agente Clasificador",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst clasificacion = response.content[0].text.trim().toUpperCase();\nconst prevData = $('🔄 Normalizador de Canal').first().json;\n\nconst categorias = ['VENTAS', 'SOPORTE', 'FACTURACION', 'ESCALAMIENTO', 'GENERAL'];\nconst categoria = categorias.includes(clasificacion) ? clasificacion : 'GENERAL';\n\nreturn [{\n  json: {\n    ...prevData,\n    categoria\n  }\n}];"
+      },
+      "id": "node-extract-classification",
+      "name": "📊 Extraer Clasificación",
+      "type": "n8n-nodes-base.code",
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "VENTAS", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "Ventas" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "SOPORTE", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "Soporte" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "FACTURACION", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "Facturacion" },
+            { "conditions": { "options": { "caseSensitive": false }, "conditions": [{ "leftValue": "={{ $json.categoria }}", "rightValue": "ESCALAMIENTO", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "Escalamiento" }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "node-router",
+      "name": "🔀 Router de Agentes",
+      "type": "n8n-nodes-base.switch",
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 500,\n  system: `Eres Nova, agente especialista en VENTAS de una empresa de software.\\n\\nBASE DE CONOCIMIENTO — VENTAS:\\n• Plan Básico: $99/mes → hasta 3 usuarios, funciones esenciales, soporte 48h\\n• Plan Pro: $199/mes → hasta 10 usuarios, todas las integraciones, soporte 24h, exportación avanzada\\n• Plan Enterprise: Precio personalizado → usuarios ilimitados, SLA garantizado, onboarding dedicado, soporte 4h\\n• Prueba gratuita: 14 días en cualquier plan, sin tarjeta de crédito\\n• Descuento anual: 20% en pago anual en todos los planes\\n• Demo personalizada: disponible para equipos de más de 5 personas\\n\\nTu objetivo es ayudar al usuario a elegir el plan correcto y motivarlo a iniciar la prueba gratuita.\\nSé entusiasta pero honesto. No presiones. Máximo 3-4 líneas de respuesta.\\nSiempre termina con una pregunta o llamada a la acción clara.`,\n  messages: [{ role: 'user', content: $json.mensaje }]\n}) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-agent-sales",
+      "name": "💼 Agente Ventas",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1340, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 500,\n  system: `Eres Nova, agente especialista en SOPORTE TÉCNICO.\\n\\nBASE DE CONOCIMIENTO — SOPORTE:\\n• Horario: Lunes a Viernes, 9am–7pm (CDMX)\\n• Tiempos de respuesta: Básico 48h | Pro 24h | Enterprise 4h\\n• Para problemas urgentes Enterprise: usar línea directa en el panel de control\\n• Restablecer contraseña: Login > ¿Olvidaste tu contraseña?\\n• 2FA disponible en todos los planes desde Configuración > Seguridad\\n• Integraciones disponibles: Slack, Notion, HubSpot, Zapier, Make.com y +50 más\\n• Integraciones solo disponibles desde Plan Pro\\n• Documentación técnica completa en: docs.empresa.com\\n• Para reportar bugs: soporte@empresa.com con capturas de pantalla\\n\\nSé empático y resolutivo. Si no tienes la solución exacta, da el siguiente paso concreto.\\nMáximo 3-4 líneas. Siempre ofrece un paso a seguir claro.`,\n  messages: [{ role: 'user', content: $json.mensaje }]\n}) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-agent-support",
+      "name": "🔧 Agente Soporte",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1340, 320]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 500,\n  system: `Eres Nova, agente especialista en FACTURACIÓN y pagos.\\n\\nBASE DE CONOCIMIENTO — FACTURACIÓN:\\n• Métodos de pago: Tarjetas Visa/MC/Amex y transferencia bancaria\\n• Facturación: mensual (día 1) o anual (20% descuento)\\n• Las facturas se envían automáticamente al correo registrado\\n• Cambiar método de pago: Configuración > Facturación > Método de pago\\n• Cancelar suscripción: Configuración > Suscripción > Cancelar plan (sin penalización)\\n• Política de reembolsos: reembolso completo en los primeros 30 días\\n• Después de 30 días: no se procesan reembolsos parciales\\n• Para solicitar reembolso: facturacion@empresa.com\\n• Facturas en formato PDF disponibles en el panel > Historial de facturas\\n\\nSé preciso con los datos. Si hay una queja de cobro, valida primero antes de prometer algo.\\nMáximo 3-4 líneas. Tono profesional y empático.`,\n  messages: [{ role: 'user', content: $json.mensaje }]\n}) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-agent-billing",
+      "name": "💳 Agente Facturación",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1340, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prevData = $input.first().json;\n\n// Simula notificación al equipo humano (en producción: enviar a Slack/email)\nconsole.log(`ESCALAMIENTO REQUERIDO - Usuario: ${prevData.usuarioId} - Canal: ${prevData.canal}`);\n\nreturn [{\n  json: {\n    ...prevData,\n    respuesta: `Entiendo que necesitas atención especializada, ${prevData.nombreUsuario}. 🙏\\n\\nHe notificado a nuestro equipo de soporte humano y te contactarán en menos de 30 minutos por este mismo canal.\\n\\nMientras tanto, si es urgente puedes escribir directamente a soporte@empresa.com o llamar al +52 55 1234 5678 (9am–7pm CDMX).`,\n    agente: 'ESCALAMIENTO',\n    escalado: true\n  }\n}];"
+      },
+      "id": "node-agent-escalation",
+      "name": "🚨 Agente Escalamiento",
+      "type": "n8n-nodes-base.code",
+      "position": [1340, 640]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=",
+              "value": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20251001',\n  max_tokens: 300,\n  system: `Eres Nova, asistente de atención al cliente amigable y profesional.\\nResponde saludos y consultas generales de forma cálida y breve.\\nSiempre ofrece orientar al usuario hacia lo que necesita.\\nMáximo 2-3 líneas.`,\n  messages: [{ role: 'user', content: $json.mensaje }]\n}) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-agent-general",
+      "name": "💬 Agente General",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1340, 800]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Unifica la respuesta de todos los agentes en un formato estándar\nconst input = $input.first().json;\nlet respuesta = '';\nlet agente = '';\n\n// Si ya tiene respuesta (escalamiento), usarla directamente\nif (input.respuesta) {\n  respuesta = input.respuesta;\n  agente = input.agente || 'ESCALAMIENTO';\n} else if (input.content && input.content[0]) {\n  // Respuesta de Claude API\n  respuesta = input.content[0].text;\n  agente = 'IA';\n} else {\n  respuesta = 'Lo siento, tuve un problema procesando tu consulta. Por favor intenta de nuevo.';\n  agente = 'ERROR';\n}\n\n// Recuperar datos del contexto\nconst contextNode = $('🔄 Normalizador de Canal');\nconst context = contextNode.first().json;\n\nreturn [{\n  json: {\n    canal: context.canal,\n    chatId: context.chatId,\n    usuarioId: context.usuarioId,\n    nombreUsuario: context.nombreUsuario,\n    mensaje_original: context.mensaje,\n    respuesta,\n    agente,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "node-unifier",
+      "name": "🔗 Unificador de Respuestas",
+      "type": "n8n-nodes-base.code",
+      "position": [1580, 480]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.canal }}", "rightValue": "telegram", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "Telegram" },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.canal }}", "rightValue": "whatsapp", "operator": { "type": "string", "operation": "equals" } }] }, "renameOutput": true, "outputKey": "WhatsApp" }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "node-channel-router",
+      "name": "📡 Router de Canal",
+      "type": "n8n-nodes-base.switch",
+      "position": [1800, 480]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.respuesta }}",
+        "additionalFields": { "parse_mode": "Markdown" }
+      },
+      "id": "node-telegram-send",
+      "name": "✈️ Enviar Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "position": [2020, 360]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{ $credentials.accountSid }}/Messages.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "To", "value": "={{ $json.chatId }}" },
+            { "name": "From", "value": "whatsapp:+14155238886" },
+            { "name": "Body", "value": "={{ $json.respuesta }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-whatsapp-send",
+      "name": "📱 Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2020, 540]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, response: $json.respuesta, agent: $json.agente }) }}"
+      },
+      "id": "node-web-response",
+      "name": "🌐 Respuesta Web",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [2020, 700]
+    }
+  ],
+  "connections": {
+    "🌐 Webhook Entrada": { "main": [[{ "node": "🔄 Normalizador de Canal", "type": "main", "index": 0 }]] },
+    "🔄 Normalizador de Canal": { "main": [[{ "node": "🧠 Agente Clasificador", "type": "main", "index": 0 }]] },
+    "🧠 Agente Clasificador": { "main": [[{ "node": "📊 Extraer Clasificación", "type": "main", "index": 0 }]] },
+    "📊 Extraer Clasificación": { "main": [[{ "node": "🔀 Router de Agentes", "type": "main", "index": 0 }]] },
+    "🔀 Router de Agentes": {
+      "main": [
+        [{ "node": "💼 Agente Ventas", "type": "main", "index": 0 }],
+        [{ "node": "🔧 Agente Soporte", "type": "main", "index": 0 }],
+        [{ "node": "💳 Agente Facturación", "type": "main", "index": 0 }],
+        [{ "node": "🚨 Agente Escalamiento", "type": "main", "index": 0 }],
+        [{ "node": "💬 Agente General", "type": "main", "index": 0 }]
+      ]
+    },
+    "💼 Agente Ventas": { "main": [[{ "node": "🔗 Unificador de Respuestas", "type": "main", "index": 0 }]] },
+    "🔧 Agente Soporte": { "main": [[{ "node": "🔗 Unificador de Respuestas", "type": "main", "index": 0 }]] },
+    "💳 Agente Facturación": { "main": [[{ "node": "🔗 Unificador de Respuestas", "type": "main", "index": 0 }]] },
+    "🚨 Agente Escalamiento": { "main": [[{ "node": "🔗 Unificador de Respuestas", "type": "main", "index": 0 }]] },
+    "💬 Agente General": { "main": [[{ "node": "🔗 Unificador de Respuestas", "type": "main", "index": 0 }]] },
+    "🔗 Unificador de Respuestas": { "main": [[{ "node": "📡 Router de Canal", "type": "main", "index": 0 }]] },
+    "📡 Router de Canal": {
+      "main": [
+        [{ "node": "✈️ Enviar Telegram", "type": "main", "index": 0 }],
+        [{ "node": "📱 Enviar WhatsApp", "type": "main", "index": 0 }],
+        [{ "node": "🌐 Respuesta Web", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": { "templateCredsSetupCompleted": false }
+}
