@@ -4,3 +4,5 @@ dist/
 .vercel/
 package-lock.json
 .DS_Store
+__pycache__/
+*.pyc

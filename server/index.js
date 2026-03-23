@@ -11,11 +11,83 @@ import { handleGeneral } from './agents/general.js';
 
 const app = express();
 const PORT = process.env.PORT || 3010;
+const START_TIME = Date.now();
 
-app.use(cors());
-app.use(express.json());
+// ─── Structured logging ──────────────────────────────────────
+function log(level, msg, meta = {}) {
+  const entry = {
+    ts: new Date().toISOString(),
+    level,
+    msg,
+    ...meta,
+  };
+  console.log(JSON.stringify(entry));
+}
 
-// Agent router map
+// ─── CORS with preflight ────────────────────────────────────
+app.use(cors({
+  origin: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id'],
+  credentials: true,
+}));
+app.options('*', cors());
+
+app.use(express.json({ limit: '10kb' }));
+
+// ─── Rate limiting (in-memory, per IP) ──────────────────────
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 30;
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  let entry = rateLimitMap.get(ip);
+
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    entry = { windowStart: now, count: 0 };
+    rateLimitMap.set(ip, entry);
+  }
+
+  entry.count++;
+  return {
+    allowed: entry.count <= RATE_LIMIT_MAX,
+    remaining: Math.max(0, RATE_LIMIT_MAX - entry.count),
+    resetAt: entry.windowStart + RATE_LIMIT_WINDOW_MS,
+  };
+}
+
+// Periodic cleanup of stale rate limit entries (every 5 min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS * 2) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 300_000);
+
+// Rate limit middleware
+app.use('/api/chat', (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const { allowed, remaining, resetAt } = checkRateLimit(ip);
+
+  res.set('X-RateLimit-Limit', String(RATE_LIMIT_MAX));
+  res.set('X-RateLimit-Remaining', String(remaining));
+  res.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)));
+
+  if (!allowed) {
+    log('warn', 'Rate limit exceeded', { ip });
+    return res.status(429).json({
+      error: 'Demasiadas solicitudes. Intenta de nuevo en un momento.',
+      code: 'RATE_LIMIT_EXCEEDED',
+      retryAfterMs: resetAt - Date.now(),
+    });
+  }
+  next();
+});
+
+// ─── Agent config ───────────────────────────────────────────
 const AGENT_HANDLERS = {
   VENTAS: handleSales,
   SOPORTE: handleSupport,
@@ -32,7 +104,51 @@ const AGENT_LABELS = {
   GENERAL: 'Agente General',
 };
 
-// Initialize Anthropic client
+// ─── Stats tracking ─────────────────────────────────────────
+const stats = {
+  totalMessages: 0,
+  byAgent: { VENTAS: 0, SOPORTE: 0, FACTURACION: 0, ESCALAMIENTO: 0, GENERAL: 0 },
+  errors: 0,
+  demoMessages: 0,
+  liveMessages: 0,
+};
+
+// ─── Session conversation context (in-memory) ──────────────
+const sessionStore = new Map();
+const SESSION_MAX_MESSAGES = 50;
+const SESSION_TTL_MS = 30 * 60_000; // 30 minutes
+
+function getSession(sessionId) {
+  if (!sessionId) return null;
+  let session = sessionStore.get(sessionId);
+  if (!session) {
+    session = { messages: [], createdAt: Date.now(), lastActivity: Date.now() };
+    sessionStore.set(sessionId, session);
+  }
+  session.lastActivity = Date.now();
+  return session;
+}
+
+function addToSession(sessionId, role, content) {
+  const session = getSession(sessionId);
+  if (!session) return;
+  session.messages.push({ role, content, ts: Date.now() });
+  if (session.messages.length > SESSION_MAX_MESSAGES) {
+    session.messages = session.messages.slice(-SESSION_MAX_MESSAGES);
+  }
+}
+
+// Periodic cleanup of expired sessions (every 5 min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of sessionStore) {
+    if (now - session.lastActivity > SESSION_TTL_MS) {
+      sessionStore.delete(id);
+    }
+  }
+}, 300_000);
+
+// ─── Anthropic client ───────────────────────────────────────
 let client = null;
 function getClient() {
   if (!client) {
@@ -45,60 +161,158 @@ function getClient() {
   return client;
 }
 
-// ─── Health check ─────────────────────────────────────────────
+// ─── Health check ───────────────────────────────────────────
 app.get('/api/health', (req, res) => {
+  const uptimeMs = Date.now() - START_TIME;
+  const uptimeMin = Math.floor(uptimeMs / 60_000);
+  const hasKey = !!getClient();
+
   res.json({
     status: 'ok',
-    agents: Object.keys(AGENT_LABELS),
-    hasApiKey: !!getClient(),
+    uptime: `${uptimeMin}m`,
+    uptimeMs,
+    mode: hasKey ? 'live' : 'demo',
+    agents: Object.entries(AGENT_LABELS).map(([key, label]) => ({
+      id: key,
+      label,
+      status: 'active',
+    })),
+    hasApiKey: hasKey,
+    activeSessions: sessionStore.size,
+    timestamp: new Date().toISOString(),
   });
 });
 
-// ─── Main chat endpoint ──────────────────────────────────────
-app.post('/api/chat', async (req, res) => {
-  const { message, messages = [], userName = 'Usuario' } = req.body;
+// ─── Stats endpoint ─────────────────────────────────────────
+app.get('/api/stats', (req, res) => {
+  const uptimeMs = Date.now() - START_TIME;
+  res.json({
+    uptime: `${Math.floor(uptimeMs / 60_000)}m`,
+    totalMessages: stats.totalMessages,
+    byAgent: { ...stats.byAgent },
+    errors: stats.errors,
+    demoMessages: stats.demoMessages,
+    liveMessages: stats.liveMessages,
+    activeSessions: sessionStore.size,
+    topAgent: Object.entries(stats.byAgent).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A',
+  });
+});
 
-  if (!message) {
-    return res.status(400).json({ error: 'Se requiere un mensaje' });
+// ─── Main chat endpoint ─────────────────────────────────────
+app.post('/api/chat', async (req, res) => {
+  // Request validation
+  if (!req.body || typeof req.body !== 'object') {
+    return res.status(400).json({ error: 'Body inválido', code: 'INVALID_BODY' });
   }
+
+  const { message, messages = [], userName = 'Usuario', sessionId } = req.body;
+
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Se requiere un campo "message" de tipo string', code: 'MISSING_MESSAGE' });
+  }
+
+  if (message.length > 2000) {
+    return res.status(400).json({ error: 'El mensaje excede el límite de 2000 caracteres', code: 'MESSAGE_TOO_LONG' });
+  }
+
+  const sid = sessionId || 'default';
+  stats.totalMessages++;
 
   const anthropic = getClient();
 
   // Demo mode: respond without API key using simple pattern matching
   if (!anthropic) {
+    stats.demoMessages++;
     const demoResponse = getDemoResponse(message, userName, messages);
+    addToSession(sid, 'user', message);
+    addToSession(sid, 'assistant', demoResponse.response);
     return res.json(demoResponse);
   }
 
+  // ─── Live mode (Claude API) ───────────────────────────────
   try {
-    // Step 1: Classify intent
-    const category = await classifyIntent(anthropic, message);
+    stats.liveMessages++;
+    const startMs = Date.now();
+
+    // Step 1: Classify intent (now returns { agent, confidence, reasoning, secondary })
+    const classification = await classifyIntent(anthropic, message);
+
+    log('info', 'Intent classified', {
+      agent: classification.agent,
+      confidence: classification.confidence,
+      reasoning: classification.reasoning,
+      secondary: classification.secondary?.agent || null,
+      sessionId: sid,
+    });
 
     // Step 2: Build conversation history for the agent
+    // Merge session history with frontend-provided messages
+    const session = getSession(sid);
+    const sessionHistory = session ? session.messages.map((m) => ({ role: m.role, content: m.content })) : [];
+    const frontendHistory = messages.map((m) => ({ role: m.role, content: m.content }));
+
+    // Prefer frontend history if provided, otherwise use session
+    const baseHistory = frontendHistory.length > 0 ? frontendHistory : sessionHistory;
     const history = [
-      ...messages.map(m => ({ role: m.role, content: m.content })),
+      ...baseHistory,
       { role: 'user', content: message },
     ];
 
     // Step 3: Route to the correct agent
+    const category = classification.agent;
     const handler = AGENT_HANDLERS[category];
     const response = await handler(anthropic, message, history, userName);
+
+    const durationMs = Date.now() - startMs;
+    stats.byAgent[category] = (stats.byAgent[category] || 0) + 1;
+
+    // Store in session
+    addToSession(sid, 'user', message);
+    addToSession(sid, 'assistant', response);
+
+    log('info', 'Response sent', {
+      agent: category,
+      confidence: classification.confidence,
+      durationMs,
+      sessionId: sid,
+    });
 
     // Step 4: Return response
     res.json({
       response,
       agent: AGENT_LABELS[category],
       category,
+      confidence: classification.confidence,
+      reasoning: classification.reasoning,
+      secondary: classification.secondary
+        ? { agent: AGENT_LABELS[classification.secondary.agent], confidence: classification.secondary.confidence }
+        : null,
     });
   } catch (error) {
-    console.error('Error processing message:', error.message);
+    stats.errors++;
+    log('error', 'Chat processing failed', {
+      error: error.message,
+      status: error.status,
+      sessionId: sid,
+    });
 
     if (error.status === 401) {
       return res.json(getDemoResponse(message, userName, messages));
     }
 
+    if (error.status === 429) {
+      return res.status(503).json({
+        error: 'El servicio está temporalmente saturado. Intenta en unos segundos.',
+        code: 'API_RATE_LIMITED',
+        response: 'Estoy recibiendo muchas consultas en este momento. ¿Puedes intentar en unos segundos?',
+        agent: 'Sistema',
+        category: 'ERROR',
+      });
+    }
+
     res.status(500).json({
       error: 'Error procesando el mensaje',
+      code: 'INTERNAL_ERROR',
       response: 'Tuve un problema procesando tu consulta. Por favor intenta de nuevo.',
       agent: 'Sistema',
       category: 'ERROR',
@@ -183,7 +397,6 @@ function normalizeText(text) {
 
 function scoreIntent(message, intentKey, ctx) {
   const pattern = INTENT_PATTERNS[intentKey];
-  const msg = message.toLowerCase();
   const normalized = normalizeText(message);
   let score = 0;
 
@@ -292,7 +505,6 @@ const RESPONSE_POOLS = {
 
   FAREWELL: (ctx) => {
     const name = nameInsert(ctx.userName);
-    const sentiment = ctx.sentiment;
     let responses;
 
     if (normalizeText(ctx.lastMessage || '').match(/gracia/)) {
@@ -557,10 +769,12 @@ function getDemoResponse(message, userName, conversationMessages = []) {
 
 app.listen(PORT, () => {
   const hasKey = !!getClient();
+  log('info', 'Server started', { port: PORT, mode: hasKey ? 'live' : 'demo' });
   console.log(`\n  Nova Chatbot API running on http://localhost:${PORT}`);
   console.log(`  Mode: ${hasKey ? 'Claude API (live)' : 'Demo (sin API key)'}`);
   console.log(`  Agents: ${Object.values(AGENT_LABELS).join(', ')}`);
   console.log(`  Endpoints:`);
   console.log(`    POST /api/chat   — Send messages`);
-  console.log(`    GET  /api/health — Health check\n`);
+  console.log(`    GET  /api/health — Health check`);
+  console.log(`    GET  /api/stats  — Usage statistics\n`);
 });

@@ -1,439 +1,497 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
-// ─── KNOWLEDGE BASE (simula Notion) ──────────────────────────────────────────
-const KNOWLEDGE_BASE = `
-# Base de Conocimiento — Empresa Demo
+// ─── SVG ICONS ──────────────────────────────────────────────────────────────
+const Icons = {
+  chart: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>,
+  download: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>,
+  trash: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>,
+  send: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/></svg>,
+  thumbUp: <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.5c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H14.23c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M14.25 9h2.25M5.904 18.75c.083.228.22.442.39.624a2.996 2.996 0 002.206.976h.028A2.25 2.25 0 005.904 18.75z"/></svg>,
+  thumbDown: <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 15h2.25m8.024-9.75c.011.05.028.1.052.148.591 1.2.924 2.55.924 3.977a8.96 8.96 0 01-.999 4.125m.023-8.25c-.076-.365-.183-.72-.32-1.063A4.5 4.5 0 0015 2.25h-.132a2.25 2.25 0 00-2.177 1.689l-.095.38a24.8 24.8 0 00-.6 4.02M15 15h-3.375c-1.294 0-2.532.313-3.627.906l-1.44.72A4.5 4.5 0 005.25 21h.628a2.25 2.25 0 002.149-1.586l.24-.798c.28-.93.876-1.74 1.67-2.28.59-.4 1.262-.627 1.957-.715"/></svg>,
+  info: <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>,
+};
 
-## Productos y Servicios
-- Ofrecemos planes Básico ($99/mes), Pro ($199/mes) y Enterprise (precio personalizado).
-- El plan Pro incluye soporte prioritario, acceso a todas las integraciones y hasta 10 usuarios.
-- El plan Enterprise incluye SLA garantizado, onboarding dedicado y usuarios ilimitados.
-- Todos los planes incluyen 14 días de prueba gratuita sin tarjeta de crédito.
+// ─── AGENTS ─────────────────────────────────────────────────────────────────
+const AGENTS = {
+  nova:  { name: "Nova",  mono: "NV", role: "Ventas",           gradient: "linear-gradient(135deg, #0D9488, #6EE7C7)", color: "#6EE7C7", shadow: "rgba(110,231,199,0.3)" },
+  atlas: { name: "Atlas", mono: "AT", role: "Soporte Técnico",  gradient: "linear-gradient(135deg, #3B82F6, #93C5FD)", color: "#93C5FD", shadow: "rgba(147,197,253,0.3)" },
+  aria:  { name: "Aria",  mono: "AR", role: "Facturación",      gradient: "linear-gradient(135deg, #8B5CF6, #C4B5FD)", color: "#C4B5FD", shadow: "rgba(196,181,253,0.3)" },
+  nexus: { name: "Nexus", mono: "NX", role: "Escalamiento",     gradient: "linear-gradient(135deg, #EF4444, #FCA5A5)", color: "#FCA5A5", shadow: "rgba(252,165,165,0.3)" },
+  orion: { name: "Orion", mono: "OR", role: "General",          gradient: "linear-gradient(135deg, #F59E0B, #FDE68A)", color: "#FDE68A", shadow: "rgba(253,230,138,0.3)" },
+};
 
-## Facturación y Pagos
-- Aceptamos tarjetas de crédito/débito (Visa, Mastercard, Amex) y transferencia bancaria.
-- La facturación es mensual o anual (con 20% de descuento en pago anual).
-- Las facturas se envían automáticamente al correo registrado el día 1 de cada mes.
-- Para cancelar, ingresa a Configuración > Suscripción > Cancelar plan.
+// ─── KNOWLEDGE BASE ─────────────────────────────────────────────────────────
+const KB = {
+  ventas: `## Planes y Precios
+- Plan Básico: $99/mes — 3 usuarios, soporte por email, integraciones básicas (Slack, Email)
+- Plan Pro: $199/mes — 10 usuarios, soporte prioritario (24h), todas las integraciones, analytics avanzados, API access
+- Plan Enterprise: Precio personalizado — usuarios ilimitados, SLA 99.9%, onboarding dedicado, soporte 4h, SSO/SAML
+- Todos incluyen 14 días de prueba gratuita sin tarjeta de crédito
+- Pago anual: 20% de descuento ($79/mes Básico, $159/mes Pro)
+- Upgrade/downgrade disponible en cualquier momento sin penalización
 
-## Soporte Técnico
-- El soporte está disponible de lunes a viernes de 9am a 7pm (horario CDMX).
-- Tiempo de respuesta: Plan Básico 48h, Plan Pro 24h, Enterprise 4h.
-- Para incidencias críticas en Enterprise, usar la línea directa disponible en el panel.
+## Comparativa vs Competencia
+- vs Zendesk: 40% más económico, setup en 15 min vs 2 semanas
+- vs Intercom: IA nativa sin costo extra (competidores cobran $0.99/resolución)
+- vs Freshdesk: 50+ integraciones nativas vs 30 en plan equivalente
 
-## Integraciones
-- Conectamos con Slack, Notion, HubSpot, Zapier, Make.com y más de 50 herramientas.
-- Las integraciones están disponibles desde el Plan Pro en adelante.
-- La documentación de la API está disponible en docs.empresa.com
+## Casos de Éxito
+- RetailMX: Redujo tickets 65% en 3 meses
+- FinanzasPlus: ROI de 340% en primer año
+- LogísticaPro: Resolución de 48h a 4h promedio`,
 
-## Cuenta y Seguridad
-- Puedes restablecer tu contraseña desde la pantalla de login > "¿Olvidaste tu contraseña?".
-- La autenticación de dos factores (2FA) está disponible en todos los planes.
-- Los datos se almacenan en servidores en México y EU con cifrado AES-256.
+  soporte: `## Soporte Técnico
+- Horario: Lun-Vie 9am-7pm CDMX, Enterprise 24/7
+- Tiempo de respuesta: Básico 48h, Pro 24h, Enterprise 4h
+- Base de conocimiento: docs.empresa.com (200+ artículos)
 
-## Devoluciones
-- Ofrecemos reembolso completo dentro de los primeros 30 días si no estás satisfecho.
-- Después de 30 días no se realizan reembolsos parciales.
-- Para solicitar un reembolso, escribe a facturacion@empresa.com
-`;
+## Problemas Comunes
+- "No puedo iniciar sesión" → login > "¿Olvidaste tu contraseña?" > email en 5 min
+- "Integración no conecta" → 1) Token API vigente, 2) Permisos correctos, 3) Firewall
+- "Chatbot no responde" → 1) Suscripción activa, 2) Límite no alcanzado, 3) API key válida
+- "Error 429" → Rate limit, esperar 60s o upgrade plan
 
-const SYSTEM_PROMPT = `Eres un agente de atención al cliente inteligente y empático. Tu nombre es Nova.
+## Integraciones (50+)
+- Comunicación: Slack, Teams, Discord, Zoom, WhatsApp, Telegram
+- CRM: Salesforce, HubSpot, Pipedrive, Zoho, Monday.com
+- Automatización: Zapier, n8n, Make.com, Power Automate
+- eCommerce: Shopify, WooCommerce, MercadoLibre
+- Pagos: Stripe, MercadoPago, Conekta, OpenPay`,
 
-Tu base de conocimiento es la siguiente:
-${KNOWLEDGE_BASE}
+  facturacion: `## Facturación
+- Métodos: Tarjetas (Visa, MC, Amex), SPEI, OXXO Pay, transferencia bancaria
+- Facturas CFDI automáticas el día 1 de cada mes
+- Moneda: MXN por defecto, USD/EUR para Enterprise
 
-Reglas:
-- Responde SIEMPRE en español, de forma clara, concisa y amigable.
-- Si la respuesta está en tu base de conocimiento, úsala directamente.
-- Si no tienes la información, di honestamente que escalarás el caso a un agente humano.
-- Nunca inventes información que no esté en tu base de conocimiento.
-- Sé empático si el usuario expresa frustración.
-- Mantén un tono profesional pero cercano.
-- Respuestas cortas y directas — máximo 3-4 líneas salvo que sea necesario más detalle.`;
+## Cancelación y Reembolsos
+- Cancelar: Configuración > Suscripción > Cancelar (efecto al final del ciclo)
+- Reembolso completo: primeros 30 días, sin preguntas
+- Datos post-cancelación: 90 días de retención
+- Contacto: facturacion@empresa.com
 
-// ─── SUGERENCIAS RÁPIDAS ──────────────────────────────────────────────────────
-const QUICK_SUGGESTIONS = [
-  "¿Cuáles son los planes disponibles?",
-  "¿Cómo cancelo mi suscripción?",
-  "¿Qué integraciones tienen?",
-  "Quiero un reembolso",
+## Cambio de Plan
+- Upgrade: inmediato, prorrateo del ciclo
+- Downgrade: al inicio del siguiente ciclo`,
+
+  general: `## Empresa
+- Fundada 2024, CDMX, 45+ personas, +2,000 clientes
+- Certificaciones: SOC2 Type II, ISO 27001, GDPR
+- Cifrado AES-256 + TLS 1.3, 2FA en todos los planes
+- Servidores AWS México + Virginia
+- Contacto: hola@empresa.com | (55) 1234-5678 | Lun-Vie 9-18 CDMX`,
+};
+
+// ─── INTENT CLASSIFIER ─────────────────────────────────────────────────────
+const INTENT_RULES = [
+  { agent: "nova", keys: ["plan", "precio", "costo", "comprar", "contratar", "prueba", "trial", "demo", "descuento", "upgrade", "enterprise", "pro", "basico", "básico", "anual", "comparar", "competencia", "roi", "caso de éxito", "funcionalidades"] },
+  { agent: "atlas", keys: ["error", "problema", "no funciona", "no carga", "bug", "falla", "ayuda técnica", "integración", "configurar", "instalar", "api", "token", "soporte", "429", "lento", "caído", "no conecta", "login", "contraseña", "password", "documentación"] },
+  { agent: "aria", keys: ["factura", "cobro", "pago", "reembolso", "cancelar", "suscripción", "tarjeta", "cfdi", "devolución", "cargo", "recibo", "renovar", "cambiar plan", "downgrade", "oxxo", "spei", "transferencia", "precio"] },
+  { agent: "nexus", keys: ["hablar con alguien", "agente humano", "persona real", "queja", "reclamo", "urgente", "inaceptable", "terrible", "pésimo", "enojado", "frustrado", "molesto", "no me resuelven", "supervisor", "gerente", "harto", "furioso"] },
+  { agent: "orion", keys: ["hola", "buenas", "qué hacen", "quiénes son", "horario", "contacto", "ubicación", "seguridad", "datos", "privacidad", "equipo", "empresa", "certificaciones", "gracias", "adiós", "cómo funciona"] },
 ];
 
-// ─── COMPONENTES ──────────────────────────────────────────────────────────────
-function TypingDots() {
+function classifyIntent(text) {
+  const norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const frustration = ["no funciona", "terrible", "pesimo", "enojado", "frustrado", "molesto", "inaceptable", "harto", "furioso", "queja"];
+  if (frustration.some(w => norm.includes(w.normalize("NFD").replace(/[\u0300-\u036f]/g, "")))) return { agent: "nexus", confidence: 0.95 };
+
+  let best = "orion", bestScore = 0, totalKeys = 0;
+  for (const rule of INTENT_RULES) {
+    let score = 0;
+    for (const key of rule.keys) {
+      if (norm.includes(key.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))) score++;
+    }
+    totalKeys += rule.keys.length;
+    if (score > bestScore) { bestScore = score; best = rule.agent; }
+  }
+  const confidence = bestScore > 0 ? Math.min(0.5 + bestScore * 0.2, 0.98) : 0.3;
+  return { agent: confidence >= 0.4 ? best : "orion", confidence };
+}
+
+// ─── AGENT SYSTEM PROMPTS ───────────────────────────────────────────────────
+function getSystemPrompt(agentId) {
+  const a = AGENTS[agentId];
+  const kbMap = { nova: "ventas", atlas: "soporte", aria: "facturacion", nexus: null, orion: "general" };
+  const kbContent = kbMap[agentId] ? KB[kbMap[agentId]] : "";
+
+  if (agentId === "nexus") return `Eres ${a.name}, agente de escalamiento empático. 1) Empatiza genuinamente, 2) Reconoce el problema sin excusas, 3) Ofrece escalar a agente humano, 4) Da contacto: soporte@empresa.com, (55) 1234-5678, 5) Máximo 30 min respuesta humana. Español, max 4 líneas.`;
+
+  return `Eres ${a.name}, agente de ${a.role} de una empresa SaaS.\n\nBase de conocimiento:\n${kbContent}\n${KB.general}\n\nReglas:\n- Español, claro, conciso, profesional\n- Usa datos específicos de la KB (precios, tiempos, pasos)\n- Si no sabes, di que escalarás\n- Nunca inventes\n- Max 4-5 líneas\n- Incluye datos concretos cuando sea relevante`;
+}
+
+// ─── DEMO RESPONSES ─────────────────────────────────────────────────────────
+const DEMO = {
+  nova: {
+    default: "Tenemos 3 planes: Básico ($99/mes, 3 usuarios), Pro ($199/mes, 10 usuarios + soporte prioritario) y Enterprise (personalizado, usuarios ilimitados + SLA 99.9%). Todos incluyen 14 días de prueba gratuita. ¿Cuál se ajusta a tus necesidades?",
+    patterns: [
+      { k: ["precio", "costo", "cuanto", "plan"], r: "Nuestros planes: Básico $99/mes, Pro $199/mes, Enterprise personalizado. Con pago anual obtienes 20% de descuento. 14 días gratis sin tarjeta. ¿Cuál te interesa?" },
+      { k: ["prueba", "trial", "gratis"], r: "Ofrecemos 14 días de prueba completamente gratis, sin tarjeta de crédito. Acceso completo al Plan Pro. ¿Te ayudo a activarla?" },
+      { k: ["enterprise", "corporativo"], r: "Enterprise incluye: usuarios ilimitados, SLA 99.9%, onboarding dedicado, soporte 4h, SSO/SAML y account manager. Precio según necesidades. ¿Te conecto con ventas?" },
+      { k: ["descuento", "anual"], r: "Con pago anual: Básico $79/mes (ahorro $240/año) y Pro $159/mes (ahorro $480/año). ¿Te interesa?" },
+      { k: ["competencia", "zendesk", "intercom"], r: "Somos 40% más económicos que Zendesk, con setup en 15 min. A diferencia de Intercom, nuestra IA está incluida sin costo extra por resolución. ¿Quieres una demo?" },
+    ],
+  },
+  atlas: {
+    default: "Para ayudarte mejor, ¿podrías describir el error? Si es acceso, ve a login > '¿Olvidaste tu contraseña?'. Soporte disponible Lun-Vie 9am-7pm CDMX.",
+    patterns: [
+      { k: ["login", "contraseña", "acceso"], r: "Para restablecer: 1) Pantalla de login > '¿Olvidaste tu contraseña?', 2) Ingresa tu email, 3) Link de recuperación en máximo 5 minutos. Revisa spam si no llega." },
+      { k: ["integración", "conectar", "api"], r: "Verifica: 1) Token API vigente (Panel > API > Tokens), 2) Permisos correctos, 3) Firewall no bloquee nuestros servidores. Docs completos en docs.empresa.com" },
+      { k: ["lento", "429", "error"], r: "Error 429 = límite de requests alcanzado. Espera 60 segundos o considera upgrade para mayor capacidad. Si persiste, limpia caché y prueba en incógnito." },
+    ],
+  },
+  aria: {
+    default: "Puedo ayudarte con facturación. Aceptamos tarjetas, SPEI y OXXO Pay. Facturas CFDI automáticas el día 1. ¿Cuál es tu consulta?",
+    patterns: [
+      { k: ["cancelar", "baja"], r: "Para cancelar: Configuración > Suscripción > Cancelar. Efectiva al final del ciclo actual. Tus datos se conservan 90 días. ¿Algo más?" },
+      { k: ["reembolso", "devolución"], r: "Reembolso completo dentro de los primeros 30 días. Escribe a facturacion@empresa.com con tu número de cuenta. Procesamos en 5-7 días hábiles." },
+      { k: ["factura", "cfdi"], r: "Facturas CFDI se generan el día 1 y se envían al email registrado. Para refacturación, escribe a facturacion@empresa.com con RFC y razón social." },
+    ],
+  },
+  nexus: {
+    default: "Lamento mucho tu experiencia. Entiendo la frustración y quiero resolverlo. Estoy escalando tu caso ahora:\n\n📧 soporte@empresa.com\n📞 (55) 1234-5678\n\nUn agente humano te contactará en máximo 30 minutos. Ref: #ESC-" + Math.floor(Math.random() * 9000 + 1000),
+    patterns: [],
+  },
+  orion: {
+    default: "¡Hola! Bienvenido al asistente de Synapse. Somos una plataforma SaaS con +2,000 clientes. Tengo agentes especializados en ventas, soporte y facturación. ¿En qué te ayudo?",
+    patterns: [
+      { k: ["hola", "buenas", "hey"], r: "¡Hola! Bienvenido a Synapse. Puedo ayudarte con planes y precios, soporte técnico, o facturación. ¿Sobre qué necesitas información?" },
+      { k: ["seguridad", "datos", "privacidad"], r: "Seguridad es prioridad: cifrado AES-256 + TLS 1.3, certificaciones SOC2 Type II e ISO 27001, GDPR compliant. Servidores en AWS México con respaldo en Virginia. 2FA en todos los planes." },
+      { k: ["gracias", "excelente", "perfecto"], r: "¡Con mucho gusto! Si necesitas algo más, aquí estaré. Que tengas un excelente día." },
+    ],
+  },
+};
+
+function getDemoResponse(agentId, text) {
+  const a = DEMO[agentId]; if (!a) return "¿En qué puedo ayudarte?";
+  const norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  for (const p of a.patterns) { if (p.k.some(k => norm.includes(k))) return p.r; }
+  return a.default;
+}
+
+// ─── SUGGESTIONS ────────────────────────────────────────────────────────────
+function getSuggestions(agentId, msgCount) {
+  if (msgCount <= 1) return ["¿Cuáles son los planes?", "Tengo un problema técnico", "Necesito mi factura", "¿Qué integraciones tienen?"];
+  return {
+    nova: ["¿Prueba gratis?", "Descuento anual", "vs Zendesk", "Plan Enterprise"],
+    atlas: ["No puedo entrar", "Error 429", "Integración falla", "Hablar con soporte"],
+    aria: ["Quiero cancelar", "Necesito reembolso", "Cambiar de plan", "¿Aceptan OXXO?"],
+    nexus: ["Hablar con una persona", "Necesito solución ya"],
+    orion: ["¿Son seguros mis datos?", "Ver planes", "¿Dónde están ubicados?"],
+  }[agentId] || ["¿En qué puedo ayudar?"];
+}
+
+// ─── COMPONENTS ─────────────────────────────────────────────────────────────
+function AgentAvatar({ agentId, size = 32 }) {
+  const a = AGENTS[agentId] || AGENTS.orion;
+  const fs = size === 32 ? 11 : size === 42 ? 14 : 9;
+  return (
+    <div style={{ width: size, height: size, borderRadius: size > 36 ? 14 : "50%", background: a.gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fs, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif", letterSpacing: "-0.03em", flexShrink: 0, boxShadow: `0 0 ${size > 36 ? 20 : 12}px ${a.shadow}`, transition: "all 0.3s ease" }}>
+      {a.mono}
+    </div>
+  );
+}
+
+function UserAvatar() {
+  return (
+    <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.5)", fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
+      TÚ
+    </div>
+  );
+}
+
+function TypingDots({ agent }) {
+  const a = AGENTS[agent] || AGENTS.orion;
   return (
     <div style={{ display: "flex", gap: 5, padding: "14px 18px", alignItems: "center" }}>
-      {[0, 1, 2].map(i => (
-        <div key={i} style={{
-          width: 7, height: 7, borderRadius: "50%",
-          background: "#6EE7C7",
-          animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
-        }} />
-      ))}
+      {[0, 1, 2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: a.color, animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 6, fontStyle: "italic" }}>{a.name} está analizando...</span>
     </div>
   );
 }
 
-function Message({ msg }) {
+function Message({ msg, onRate, isFirstFromAgent }) {
   const isUser = msg.role === "user";
+  const a = AGENTS[msg.agent] || AGENTS.orion;
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: isUser ? "row-reverse" : "row",
-      alignItems: "flex-end",
-      gap: 10,
-      marginBottom: 16,
-      animation: "msgIn 0.3s cubic-bezier(0.34,1.56,0.64,1)",
-    }}>
-      {!isUser && (
+    <div style={{ display: "flex", flexDirection: isUser ? "row-reverse" : "row", alignItems: "flex-end", gap: 10, marginBottom: 16, animation: "msgIn 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}>
+      {!isUser && <AgentAvatar agentId={msg.agent} />}
+      <div style={{ maxWidth: "72%" }}>
+        {!isUser && isFirstFromAgent && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <span style={{ fontSize: 11, color: a.color, fontWeight: 600 }}>{a.name}</span>
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>· {a.role}</span>
+          </div>
+        )}
         <div style={{
-          width: 32, height: 32, borderRadius: "50%",
-          background: "linear-gradient(135deg, #0D9488, #6EE7C7)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, flexShrink: 0, boxShadow: "0 0 12px rgba(110,231,199,0.3)",
+          background: isUser ? "linear-gradient(135deg, #1E3A5F, #1a3354)" : "#161E2E",
+          border: isUser ? "1px solid rgba(99,179,237,0.2)" : `1px solid ${a.color}12`,
+          borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+          padding: "12px 16px", fontSize: 14, lineHeight: 1.65,
+          color: isUser ? "#E2F4FF" : "#D1D5DB", whiteSpace: "pre-wrap", wordBreak: "break-word",
         }}>
-          ✦
+          {msg.content}
         </div>
-      )}
-      <div style={{
-        maxWidth: "72%",
-        background: isUser
-          ? "linear-gradient(135deg, #1E3A5F, #1a3354)"
-          : "rgba(255,255,255,0.04)",
-        border: isUser
-          ? "1px solid rgba(99,179,237,0.2)"
-          : "1px solid rgba(255,255,255,0.07)",
-        borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-        padding: "12px 16px",
-        fontSize: 14,
-        lineHeight: 1.65,
-        color: isUser ? "#E2F4FF" : "#D1D5DB",
-        fontFamily: "'DM Sans', sans-serif",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-      }}>
-        {msg.content}
+        {!isUser && msg.id && (
+          <div style={{ display: "flex", gap: 4, marginTop: 5, marginLeft: 2, alignItems: "center" }}>
+            <button onClick={() => onRate(msg.id, 1)} style={{ background: msg.rating === 1 ? "rgba(16,185,129,0.2)" : "transparent", border: `1px solid ${msg.rating === 1 ? "rgba(16,185,129,0.35)" : "rgba(255,255,255,0.06)"}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: msg.rating === 1 ? "#6EE7C7" : "#4B5563", display: "flex", alignItems: "center", transition: "all 0.15s" }}>{Icons.thumbUp}</button>
+            <button onClick={() => onRate(msg.id, -1)} style={{ background: msg.rating === -1 ? "rgba(239,68,68,0.2)" : "transparent", border: `1px solid ${msg.rating === -1 ? "rgba(239,68,68,0.35)" : "rgba(255,255,255,0.06)"}`, borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: msg.rating === -1 ? "#FCA5A5" : "#4B5563", display: "flex", alignItems: "center", transition: "all 0.15s" }}>{Icons.thumbDown}</button>
+            {msg.timestamp && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginLeft: 4 }}>{msg.timestamp}</span>}
+          </div>
+        )}
       </div>
-      {isUser && (
-        <div style={{
-          width: 32, height: 32, borderRadius: "50%",
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, flexShrink: 0,
-        }}>
-          👤
-        </div>
-      )}
+      {isUser && <UserAvatar />}
     </div>
   );
 }
 
-// ─── APP PRINCIPAL ─────────────────────────────────────────────────────────────
-export default function ChatbotAtencionCliente() {
-  const [messages, setMessages] = useState([
-    {
-      role: "assistant",
-      content: "¡Hola! Soy Nova, tu asistente de atención al cliente. Estoy entrenada con toda la base de conocimiento de la empresa y puedo ayudarte al instante. ¿En qué te puedo ayudar hoy?",
-    }
-  ]);
+function TransferIndicator({ to }) {
+  const a = AGENTS[to];
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "14px 0", animation: "transferFlash 0.6s ease" }}>
+      <div style={{ height: 1, flex: 1, background: `linear-gradient(to right, transparent, ${a?.color}30)` }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: `${a?.color}10`, border: `1px solid ${a?.color}20` }}>
+        <AgentAvatar agentId={to} size={18} />
+        <span style={{ fontSize: 10, color: a?.color, fontWeight: 600 }}>Transferido a {a?.name}</span>
+        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>· {a?.role}</span>
+      </div>
+      <div style={{ height: 1, flex: 1, background: `linear-gradient(to left, transparent, ${a?.color}30)` }} />
+    </div>
+  );
+}
+
+function StatsPanel({ messages, ratings }) {
+  const total = messages.filter(m => m.role === "user").length;
+  const agentCounts = {};
+  messages.filter(m => m.agent).forEach(m => { agentCounts[m.agent] = (agentCounts[m.agent] || 0) + 1; });
+  const up = Object.values(ratings).filter(r => r === 1).length;
+  const down = Object.values(ratings).filter(r => r === -1).length;
+  const sat = up + down > 0 ? Math.round((up / (up + down)) * 100) : 0;
+
+  return (
+    <div style={{ padding: "14px 20px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)", animation: "slideDown 0.25s ease" }}>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div>
+          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Mensajes</span>
+          <p style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 700, color: "#F9FAFB" }}>{total}</p>
+        </div>
+        <div>
+          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Satisfacción</span>
+          <p style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 700, color: sat >= 70 ? "#6EE7C7" : sat >= 40 ? "#FDE68A" : up + down === 0 ? "rgba(255,255,255,0.15)" : "#FCA5A5" }}>
+            {up + down > 0 ? `${sat}%` : "—"}
+          </p>
+          {up + down === 0 && <span style={{ fontSize: 8, color: "rgba(255,255,255,0.15)" }}>Califica respuestas abajo</span>}
+        </div>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Distribución</span>
+          <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+            {Object.entries(agentCounts).map(([id, count]) => {
+              const ag = AGENTS[id];
+              return ag ? <span key={id} style={{ fontSize: 9, color: ag.color, background: `${ag.color}12`, border: `1px solid ${ag.color}20`, borderRadius: 10, padding: "2px 8px", fontWeight: 500 }}>{ag.mono} {count}</span> : null;
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN ───────────────────────────────────────────────────────────────────
+let msgId = 0;
+const ts = () => new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+
+export default function SynapseAssistant() {
+  const [messages, setMessages] = useState(() => {
+    try { const s = localStorage.getItem("synapse_msgs"); if (s) return JSON.parse(s); } catch {}
+    return [{ id: ++msgId, role: "assistant", agent: "orion", content: "¡Hola! Soy el asistente de Synapse. Tengo agentes especializados que te ayudarán al instante. Describe tu consulta y te conectaré con el más indicado.", timestamp: ts() }];
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [agent, setAgent] = useState("orion");
+  const [showStats, setShowStats] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [ratings, setRatings] = useState(() => { try { const s = localStorage.getItem("synapse_ratings"); if (s) return JSON.parse(s); } catch {} return {}; });
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  useEffect(() => { localStorage.setItem("synapse_msgs", JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { localStorage.setItem("synapse_ratings", JSON.stringify(ratings)); }, [ratings]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+
+  const handleRate = useCallback((id, val) => {
+    setRatings(prev => { const n = { ...prev }; n[id] = prev[id] === val ? 0 : val; return n; });
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, rating: ratings[id] === val ? 0 : val } : m));
+  }, [ratings]);
+
+  const clearChat = useCallback(() => {
+    setMessages([{ id: ++msgId, role: "assistant", agent: "orion", content: "Conversación reiniciada. ¿En qué te ayudo?", timestamp: ts() }]);
+    setRatings({}); setAgent("orion");
+    localStorage.removeItem("synapse_msgs"); localStorage.removeItem("synapse_ratings");
+  }, []);
+
+  const exportChat = useCallback(() => {
+    const blob = new Blob([JSON.stringify(messages, null, 2)], { type: "application/json" });
+    const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = `synapse-chat-${Date.now()}.json`; a.click(); URL.revokeObjectURL(u);
+  }, [messages]);
+
+  const suggestions = useMemo(() => getSuggestions(agent, messages.length), [agent, messages.length]);
+
+  // Track which messages are first from their agent
+  const firstFromAgent = useMemo(() => {
+    const seen = new Set();
+    const result = {};
+    let lastAgent = null;
+    for (const m of messages) {
+      if (m.role === "assistant" && m.agent) {
+        result[m.id] = m.agent !== lastAgent;
+        lastAgent = m.agent;
+      }
+    }
+    return result;
+  }, [messages]);
 
   const sendMessage = async (text) => {
     const content = (text || input).trim();
     if (!content || loading) return;
     setInput("");
 
-    const userMsg = { role: "user", content };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    setMessages(prev => [...prev, { id: ++msgId, role: "user", content, timestamp: ts() }]);
     setLoading(true);
+
+    const { agent: target, confidence } = classifyIntent(content);
+    const doTransfer = target !== agent;
+    if (doTransfer) {
+      setMessages(prev => [...prev, { id: ++msgId, role: "transfer", to: target }]);
+      setAgent(target);
+      await new Promise(r => setTimeout(r, 700));
+    }
+
+    // Typing delay varies by agent personality
+    const delays = { nova: 900, atlas: 700, aria: 800, nexus: 500, orion: 600 };
 
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: SYSTEM_PROMPT,
-          messages: updatedMessages.map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
+          model: "claude-sonnet-4-20250514", max_tokens: 800,
+          system: getSystemPrompt(target),
+          messages: messages.filter(m => m.role === "user" || m.role === "assistant").slice(-10).concat([{ role: "user", content }]).map(m => ({ role: m.role, content: m.content })),
         }),
       });
-
       const data = await response.json();
-      const reply = data.content?.[0]?.text || "Lo siento, hubo un error. Por favor intenta de nuevo.";
-      setMessages(prev => [...prev, { role: "assistant", content: reply }]);
+      const reply = data.content?.[0]?.text || getDemoResponse(target, content);
+      setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: reply, timestamp: ts() }]);
     } catch {
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: "Tuve un problema de conexión. Por favor intenta de nuevo en un momento.",
-      }]);
+      await new Promise(r => setTimeout(r, delays[target] || 700));
+      setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: getDemoResponse(target, content), timestamp: ts() }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
-  const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  const ca = AGENTS[agent];
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#0A0F1A",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontFamily: "'DM Sans', sans-serif",
-      padding: 20,
-    }}>
+    <div style={{ minHeight: "100vh", background: "#0A0F1A", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif", padding: 20 }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700&display=swap');
-        @keyframes msgIn {
-          from { opacity: 0; transform: translateY(10px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-          40%            { transform: scale(1);   opacity: 1;   }
-        }
-        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        * { box-sizing: border-box; }
-        textarea:focus { outline: none; }
-        textarea { resize: none; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+        @keyframes msgIn { from{opacity:0;transform:translateY(10px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+        @keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes transferFlash { 0%{opacity:0;transform:scaleX(0.8)} 50%{opacity:1} 100%{transform:scaleX(1)} }
+        @keyframes welcomePulse { 0%{transform:scale(0.85);opacity:0} 60%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+        *{box-sizing:border-box} textarea:focus{outline:none} textarea{resize:none}
+        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:2px}
       `}</style>
 
-      <div style={{
-        width: "100%",
-        maxWidth: 480,
-        height: "min(720px, 90vh)",
-        background: "#0F1624",
-        border: "1px solid rgba(255,255,255,0.07)",
-        borderRadius: 24,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        boxShadow: "0 40px 120px rgba(0,0,0,0.6), 0 0 0 1px rgba(110,231,199,0.05)",
-      }}>
+      {/* Subtle background glow */}
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 600, height: 600, background: `radial-gradient(circle, ${ca.shadow?.replace("0.3", "0.04")} 0%, transparent 70%)`, pointerEvents: "none", transition: "background 1s ease" }} />
+
+      <div style={{ width: "100%", maxWidth: 520, height: "min(780px, 92vh)", background: "#0F1624", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 24, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: `0 40px 120px rgba(0,0,0,0.6), 0 0 0 1px ${ca.color}08`, position: "relative", zIndex: 1, transition: "box-shadow 0.5s ease" }}>
 
         {/* HEADER */}
-        <div style={{
-          padding: "20px 24px",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(255,255,255,0.02)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{
-              width: 42, height: 42, borderRadius: 14,
-              background: "linear-gradient(135deg, #0D9488, #6EE7C7)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18, boxShadow: "0 0 20px rgba(110,231,199,0.25)",
-            }}>
-              ✦
+            <div style={{ animation: messages.length <= 1 ? "welcomePulse 0.5s ease" : "none" }}>
+              <AgentAvatar agentId={agent} size={42} />
             </div>
             <div>
-              <div style={{
-                fontFamily: "'Syne', sans-serif",
-                fontWeight: 700, fontSize: 16,
-                color: "#F9FAFB", letterSpacing: "-0.02em",
-              }}>
-                Nova
-              </div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#F9FAFB", letterSpacing: "-0.02em" }}>Synapse</div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{
-                  width: 6, height: 6, borderRadius: "50%",
-                  background: "#34D399",
-                  boxShadow: "0 0 6px #34D399",
-                }} />
-                <span style={{ fontSize: 11, color: "#6B7280", fontWeight: 500 }}>
-                  Activa · Responde al instante
-                </span>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399", boxShadow: "0 0 6px #34D399" }} />
+                <span style={{ fontSize: 10, color: ca.color, fontWeight: 500, transition: "color 0.3s" }}>{ca.name} · {ca.role}</span>
               </div>
             </div>
           </div>
-
-          <button
-            onClick={() => setShowInfo(v => !v)}
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 10, padding: "6px 12px",
-              color: "#9CA3AF", fontSize: 12, cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-              transition: "all 0.2s",
-            }}
-          >
-            {showInfo ? "Ocultar" : "¿Cómo funciona?"}
-          </button>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => { setShowInfo(v => !v); setShowStats(false); }} title="Info" style={{ background: showInfo ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showInfo ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showInfo ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.info}</button>
+            <button onClick={() => { setShowStats(v => !v); setShowInfo(false); }} title="Analytics" style={{ background: showStats ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showStats ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showStats ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.chart}</button>
+            <button onClick={exportChat} title="Exportar" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.download}</button>
+            <button onClick={clearChat} title="Limpiar" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.trash}</button>
+          </div>
         </div>
 
         {/* INFO PANEL */}
         {showInfo && (
-          <div style={{
-            padding: "14px 24px",
-            background: "rgba(13,148,136,0.06)",
-            borderBottom: "1px solid rgba(13,148,136,0.15)",
-            animation: "slideDown 0.25s ease",
-          }}>
-            <p style={{ margin: 0, fontSize: 12, color: "#6EE7C7", lineHeight: 1.7 }}>
-              <strong>Arquitectura:</strong> Chatbot entrenado con base de conocimiento en <strong>Notion</strong>, 
-              orquestado via <strong>n8n / Make.com</strong> y potenciado por <strong>Claude API</strong>. 
-              Desplegable en Web, WhatsApp o Telegram. Resuelve ~80% de dudas frecuentes sin intervención humana.
+          <div style={{ padding: "12px 20px", background: `${ca.color}06`, borderBottom: `1px solid ${ca.color}15`, animation: "slideDown 0.25s ease" }}>
+            <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.5)", lineHeight: 1.8 }}>
+              <strong style={{ color: ca.color }}>5 agentes IA</strong> con clasificación de intención, detección de sentimiento y enrutamiento automático.
+              Cada agente tiene personalidad, base de conocimiento y tono propio. Powered by <strong>Claude API</strong>, orquestado con <strong>n8n</strong>.
             </p>
           </div>
         )}
 
+        {/* STATS */}
+        {showStats && <StatsPanel messages={messages} ratings={ratings} />}
+
         {/* MESSAGES */}
-        <div style={{
-          flex: 1, overflowY: "auto",
-          padding: "20px 20px 8px",
-        }}>
-          {messages.map((msg, i) => (
-            <Message key={i} msg={msg} />
-          ))}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 8px" }}>
+          {messages.map(msg =>
+            msg.role === "transfer" ? <TransferIndicator key={msg.id} to={msg.to} /> : <Message key={msg.id} msg={msg} onRate={handleRate} isFirstFromAgent={firstFromAgent[msg.id]} />
+          )}
           {loading && (
-            <div style={{
-              display: "flex", alignItems: "flex-end", gap: 10, marginBottom: 16,
-              animation: "msgIn 0.3s ease",
-            }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: "50%",
-                background: "linear-gradient(135deg, #0D9488, #6EE7C7)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 14, flexShrink: 0,
-              }}>✦</div>
-              <div style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: "18px 18px 18px 4px",
-              }}>
-                <TypingDots />
-              </div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginBottom: 16, animation: "msgIn 0.3s ease" }}>
+              <AgentAvatar agentId={agent} />
+              <div style={{ background: "#161E2E", border: `1px solid ${ca.color}12`, borderRadius: "18px 18px 18px 4px" }}><TypingDots agent={agent} /></div>
             </div>
           )}
           <div ref={bottomRef} />
         </div>
 
-        {/* QUICK SUGGESTIONS */}
-        {messages.length <= 1 && (
-          <div style={{
-            padding: "0 20px 12px",
-            display: "flex", gap: 8, flexWrap: "wrap",
-            animation: "fadeIn 0.5s ease",
-          }}>
-            {QUICK_SUGGESTIONS.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => sendMessage(s)}
-                disabled={loading}
-                style={{
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.09)",
-                  borderRadius: 20, padding: "6px 12px",
-                  fontSize: 12, color: "#9CA3AF",
-                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-                  transition: "all 0.2s",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={e => {
-                  e.target.style.borderColor = "rgba(110,231,199,0.3)";
-                  e.target.style.color = "#6EE7C7";
-                }}
-                onMouseLeave={e => {
-                  e.target.style.borderColor = "rgba(255,255,255,0.09)";
-                  e.target.style.color = "#9CA3AF";
-                }}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* SUGGESTIONS — single row horizontal scroll */}
+        <div style={{ padding: "0 16px 8px", display: "flex", gap: 6, overflowX: "auto", flexWrap: "nowrap", animation: "fadeIn 0.5s ease", scrollbarWidth: "none" }}>
+          {suggestions.map((s, i) => (
+            <button key={i} onClick={() => sendMessage(s)} disabled={loading} style={{
+              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)",
+              borderRadius: 20, padding: "5px 12px", fontSize: 11, color: "#9CA3AF",
+              cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s", whiteSpace: "nowrap", flexShrink: 0,
+            }}
+              onMouseEnter={e => { e.target.style.borderColor = `${ca.color}40`; e.target.style.color = ca.color; }}
+              onMouseLeave={e => { e.target.style.borderColor = "rgba(255,255,255,0.09)"; e.target.style.color = "#9CA3AF"; }}
+            >{s}</button>
+          ))}
+        </div>
 
         {/* INPUT */}
-        <div style={{
-          padding: "12px 16px 16px",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          background: "rgba(0,0,0,0.2)",
-        }}>
-          <div style={{
-            display: "flex", gap: 10, alignItems: "flex-end",
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 16, padding: "10px 14px",
-            transition: "border-color 0.2s",
-          }}
-            onFocus={e => e.currentTarget.style.borderColor = "rgba(110,231,199,0.3)"}
-            onBlur={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"}
+        <div style={{ padding: "10px 16px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "rgba(255,255,255,0.04)", border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 16, padding: "10px 14px", transition: "all 0.3s", boxShadow: `0 0 0 1px ${ca.color}08` }}
+            onFocus={e => { e.currentTarget.style.borderColor = `${ca.color}35`; e.currentTarget.style.boxShadow = `0 0 0 1px ${ca.color}15`; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.boxShadow = `0 0 0 1px ${ca.color}08`; }}
           >
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder="Escribe tu pregunta..."
-              rows={1}
-              disabled={loading}
-              style={{
-                flex: 1, background: "transparent",
-                border: "none", color: "#F9FAFB",
-                fontSize: 14, lineHeight: 1.5,
-                fontFamily: "'DM Sans', sans-serif",
-                minHeight: 22, maxHeight: 100,
-                overflowY: "auto",
-              }}
+            <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Escribe tu consulta..." rows={1} disabled={loading}
+              style={{ flex: 1, background: "transparent", border: "none", color: "#F9FAFB", fontSize: 14, lineHeight: 1.5, fontFamily: "'DM Sans', system-ui, sans-serif", minHeight: 22, maxHeight: 100, overflowY: "auto" }}
             />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
-              style={{
-                width: 34, height: 34, borderRadius: 10,
-                background: input.trim() && !loading
-                  ? "linear-gradient(135deg, #0D9488, #6EE7C7)"
-                  : "rgba(255,255,255,0.06)",
-                border: "none", cursor: input.trim() && !loading ? "pointer" : "default",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 16, flexShrink: 0,
-                transition: "all 0.2s",
-                boxShadow: input.trim() && !loading ? "0 0 12px rgba(110,231,199,0.3)" : "none",
-              }}
-            >
-              ↑
-            </button>
+            <button onClick={() => sendMessage()} disabled={!input.trim() || loading} style={{
+              width: 34, height: 34, borderRadius: 10, background: input.trim() && !loading ? ca.gradient : "rgba(255,255,255,0.06)",
+              border: "none", cursor: input.trim() && !loading ? "pointer" : "default",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.2s",
+              boxShadow: input.trim() && !loading ? `0 0 12px ${ca.shadow}` : "none", color: "#fff",
+            }}>{Icons.send}</button>
           </div>
-          <p style={{
-            margin: "8px 0 0", textAlign: "center",
-            fontSize: 10, color: "rgba(255,255,255,0.15)",
-            letterSpacing: "0.05em",
-          }}>
-            POWERED BY CLAUDE API · KNOWLEDGE BASE EN NOTION · ORQUESTADO CON N8N
-          </p>
         </div>
       </div>
     </div>
