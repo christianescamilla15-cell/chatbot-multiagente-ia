@@ -33,6 +33,17 @@ class ChatResponse(BaseModel):
     timestamp: str
 
 
+class AgenticChatResponse(BaseModel):
+    """Response from the agentic (tool use) chat endpoint."""
+
+    response: str
+    agent: AgentInfo
+    tools_used: list[str] = []
+    mode: str  # "agentic" or "demo"
+    session_id: str
+    demo: bool = False
+
+
 class HealthResponse(BaseModel):
     """System health-check payload."""
 

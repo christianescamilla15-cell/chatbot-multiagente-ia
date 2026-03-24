@@ -13,12 +13,18 @@ const Icons = {
 
 // ─── AGENTS ─────────────────────────────────────────────────────────────────
 const AGENTS = {
-  nova:  { name: "Nova",  mono: "NV", role: "Ventas",           gradient: "linear-gradient(135deg, #0D9488, #6EE7C7)", color: "#6EE7C7", shadow: "rgba(110,231,199,0.3)" },
-  atlas: { name: "Atlas", mono: "AT", role: "Soporte Técnico",  gradient: "linear-gradient(135deg, #3B82F6, #93C5FD)", color: "#93C5FD", shadow: "rgba(147,197,253,0.3)" },
-  aria:  { name: "Aria",  mono: "AR", role: "Facturación",      gradient: "linear-gradient(135deg, #8B5CF6, #C4B5FD)", color: "#C4B5FD", shadow: "rgba(196,181,253,0.3)" },
-  nexus: { name: "Nexus", mono: "NX", role: "Escalamiento",     gradient: "linear-gradient(135deg, #EF4444, #FCA5A5)", color: "#FCA5A5", shadow: "rgba(252,165,165,0.3)" },
-  orion: { name: "Orion", mono: "OR", role: "General",          gradient: "linear-gradient(135deg, #F59E0B, #FDE68A)", color: "#FDE68A", shadow: "rgba(253,230,138,0.3)" },
+  nova:  { name: "Nova",  mono: "NV", role: { es: "Ventas", en: "Sales" },           gradient: "linear-gradient(135deg, #0D9488, #6EE7C7)", color: "#6EE7C7", shadow: "rgba(110,231,199,0.3)" },
+  atlas: { name: "Atlas", mono: "AT", role: { es: "Soporte Técnico", en: "Tech Support" },  gradient: "linear-gradient(135deg, #3B82F6, #93C5FD)", color: "#93C5FD", shadow: "rgba(147,197,253,0.3)" },
+  aria:  { name: "Aria",  mono: "AR", role: { es: "Facturación", en: "Billing" },      gradient: "linear-gradient(135deg, #8B5CF6, #C4B5FD)", color: "#C4B5FD", shadow: "rgba(196,181,253,0.3)" },
+  nexus: { name: "Nexus", mono: "NX", role: { es: "Escalamiento", en: "Escalation" },     gradient: "linear-gradient(135deg, #EF4444, #FCA5A5)", color: "#FCA5A5", shadow: "rgba(252,165,165,0.3)" },
+  orion: { name: "Orion", mono: "OR", role: { es: "General", en: "General" },          gradient: "linear-gradient(135deg, #F59E0B, #FDE68A)", color: "#FDE68A", shadow: "rgba(253,230,138,0.3)" },
 };
+
+function agentRole(agentId, lang) {
+  const a = AGENTS[agentId];
+  if (!a) return "";
+  return typeof a.role === "string" ? a.role : (a.role[lang] || a.role.es);
+}
 
 // ─── KNOWLEDGE BASE ─────────────────────────────────────────────────────────
 const KB = {
@@ -83,16 +89,16 @@ const KB = {
 
 // ─── INTENT CLASSIFIER ─────────────────────────────────────────────────────
 const INTENT_RULES = [
-  { agent: "nova", keys: ["plan", "precio", "costo", "comprar", "contratar", "prueba", "trial", "demo", "descuento", "upgrade", "enterprise", "pro", "basico", "básico", "anual", "comparar", "competencia", "roi", "caso de éxito", "funcionalidades"] },
-  { agent: "atlas", keys: ["error", "problema", "no funciona", "no carga", "bug", "falla", "ayuda técnica", "integración", "configurar", "instalar", "api", "token", "soporte", "429", "lento", "caído", "no conecta", "login", "contraseña", "password", "documentación"] },
-  { agent: "aria", keys: ["factura", "cobro", "pago", "reembolso", "cancelar", "suscripción", "tarjeta", "cfdi", "devolución", "cargo", "recibo", "renovar", "cambiar plan", "downgrade", "oxxo", "spei", "transferencia", "precio"] },
-  { agent: "nexus", keys: ["hablar con alguien", "agente humano", "persona real", "queja", "reclamo", "urgente", "inaceptable", "terrible", "pésimo", "enojado", "frustrado", "molesto", "no me resuelven", "supervisor", "gerente", "harto", "furioso"] },
-  { agent: "orion", keys: ["hola", "buenas", "qué hacen", "quiénes son", "horario", "contacto", "ubicación", "seguridad", "datos", "privacidad", "equipo", "empresa", "certificaciones", "gracias", "adiós", "cómo funciona"] },
+  { agent: "nova", keys: ["plan", "precio", "costo", "comprar", "contratar", "prueba", "trial", "demo", "descuento", "upgrade", "enterprise", "pro", "basico", "básico", "anual", "comparar", "competencia", "roi", "caso de éxito", "funcionalidades", "price", "pricing", "cost", "buy", "purchase", "subscribe", "discount", "annual", "compare", "features", "free trial"] },
+  { agent: "atlas", keys: ["error", "problema", "no funciona", "no carga", "bug", "falla", "ayuda técnica", "integración", "configurar", "instalar", "api", "token", "soporte", "429", "lento", "caído", "no conecta", "login", "contraseña", "password", "documentación", "problem", "not working", "broken", "help", "technical", "integration", "configure", "install", "slow", "down", "connect", "documentation", "setup"] },
+  { agent: "aria", keys: ["factura", "cobro", "pago", "reembolso", "cancelar", "suscripción", "tarjeta", "cfdi", "devolución", "cargo", "recibo", "renovar", "cambiar plan", "downgrade", "oxxo", "spei", "transferencia", "precio", "invoice", "billing", "payment", "refund", "cancel", "subscription", "card", "charge", "receipt", "renew", "change plan"] },
+  { agent: "nexus", keys: ["hablar con alguien", "agente humano", "persona real", "queja", "reclamo", "urgente", "inaceptable", "terrible", "pésimo", "enojado", "frustrado", "molesto", "no me resuelven", "supervisor", "gerente", "harto", "furioso", "talk to someone", "human agent", "real person", "complaint", "urgent", "unacceptable", "angry", "frustrated", "upset", "manager", "supervisor"] },
+  { agent: "orion", keys: ["hola", "buenas", "qué hacen", "quiénes son", "horario", "contacto", "ubicación", "seguridad", "datos", "privacidad", "equipo", "empresa", "certificaciones", "gracias", "adiós", "cómo funciona", "hello", "hi", "hey", "who are you", "what do you do", "hours", "contact", "location", "security", "privacy", "team", "company", "thanks", "goodbye", "how does it work"] },
 ];
 
 function classifyIntent(text) {
   const norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const frustration = ["no funciona", "terrible", "pesimo", "enojado", "frustrado", "molesto", "inaceptable", "harto", "furioso", "queja"];
+  const frustration = ["no funciona", "terrible", "pesimo", "enojado", "frustrado", "molesto", "inaceptable", "harto", "furioso", "queja", "not working", "angry", "frustrated", "upset", "unacceptable", "furious", "complaint"];
   if (frustration.some(w => norm.includes(w.normalize("NFD").replace(/[\u0300-\u036f]/g, "")))) return { agent: "nexus", confidence: 0.95 };
 
   let best = "orion", bestScore = 0, totalKeys = 0;
@@ -134,17 +140,20 @@ const DEMO = {
   atlas: {
     default: "Para ayudarte mejor, ¿podrías describir el error? Si es acceso, ve a login > '¿Olvidaste tu contraseña?'. Soporte disponible Lun-Vie 9am-7pm CDMX.",
     patterns: [
-      { k: ["login", "contraseña", "acceso"], r: "Para restablecer: 1) Pantalla de login > '¿Olvidaste tu contraseña?', 2) Ingresa tu email, 3) Link de recuperación en máximo 5 minutos. Revisa spam si no llega." },
-      { k: ["integración", "conectar", "api"], r: "Verifica: 1) Token API vigente (Panel > API > Tokens), 2) Permisos correctos, 3) Firewall no bloquee nuestros servidores. Docs completos en docs.empresa.com" },
+      { k: ["login", "contraseña", "acceso", "entrar", "puedo"], r: "Para restablecer: 1) Pantalla de login > '¿Olvidaste tu contraseña?', 2) Ingresa tu email, 3) Link de recuperación en máximo 5 minutos. Revisa spam si no llega." },
+      { k: ["integración", "conectar", "api", "falla"], r: "Verifica: 1) Token API vigente (Panel > API > Tokens), 2) Permisos correctos, 3) Firewall no bloquee nuestros servidores. Docs completos en docs.empresa.com" },
       { k: ["lento", "429", "error"], r: "Error 429 = límite de requests alcanzado. Espera 60 segundos o considera upgrade para mayor capacidad. Si persiste, limpia caché y prueba en incógnito." },
+      { k: ["hablar", "soporte", "humano", "persona"], r: "Nuestro soporte humano está disponible Lun-Vie 9am-7pm CDMX. Puedes contactarnos en soporte@empresa.com o (55) 1234-5678. Tiempo de respuesta: Básico 48h, Pro 24h, Enterprise 4h. ¿Quieres que escale tu caso?" },
     ],
   },
   aria: {
     default: "Puedo ayudarte con facturación. Aceptamos tarjetas, SPEI y OXXO Pay. Facturas CFDI automáticas el día 1. ¿Cuál es tu consulta?",
     patterns: [
       { k: ["cancelar", "baja"], r: "Para cancelar: Configuración > Suscripción > Cancelar. Efectiva al final del ciclo actual. Tus datos se conservan 90 días. ¿Algo más?" },
-      { k: ["reembolso", "devolución"], r: "Reembolso completo dentro de los primeros 30 días. Escribe a facturacion@empresa.com con tu número de cuenta. Procesamos en 5-7 días hábiles." },
-      { k: ["factura", "cfdi"], r: "Facturas CFDI se generan el día 1 y se envían al email registrado. Para refacturación, escribe a facturacion@empresa.com con RFC y razón social." },
+      { k: ["reembolso", "devolución", "devolver"], r: "Reembolso completo dentro de los primeros 30 días. Escribe a facturacion@empresa.com con tu número de cuenta. Procesamos en 5-7 días hábiles." },
+      { k: ["factura", "cfdi", "comprobante"], r: "Facturas CFDI se generan el día 1 y se envían al email registrado. Para refacturación, escribe a facturacion@empresa.com con RFC y razón social." },
+      { k: ["oxxo", "spei", "transferencia", "pago", "metodo"], r: "Aceptamos: tarjetas (Visa, MC, Amex), SPEI, OXXO Pay y transferencia bancaria. OXXO genera una referencia de pago con vigencia de 24h. SPEI se acredita en minutos. ¿Necesitas cambiar tu método de pago?" },
+      { k: ["cambiar", "upgrade", "downgrade", "plan"], r: "Upgrade: se aplica inmediatamente con prorrateo. Downgrade: al inicio del siguiente ciclo. Ambos desde Configuración > Suscripción. Enterprise requiere contactar a tu account manager." },
     ],
   },
   nexus: {
@@ -152,24 +161,91 @@ const DEMO = {
     patterns: [],
   },
   orion: {
-    default: "¡Hola! Bienvenido al asistente de Synapse. Somos una plataforma SaaS con +2,000 clientes. Tengo agentes especializados en ventas, soporte y facturación. ¿En qué te ayudo?",
+    default: "Puedo ayudarte con información sobre planes, soporte técnico, facturación o datos de la empresa. ¿Sobre qué tema necesitas información?",
     patterns: [
-      { k: ["hola", "buenas", "hey"], r: "¡Hola! Bienvenido a Synapse. Puedo ayudarte con planes y precios, soporte técnico, o facturación. ¿Sobre qué necesitas información?" },
-      { k: ["seguridad", "datos", "privacidad"], r: "Seguridad es prioridad: cifrado AES-256 + TLS 1.3, certificaciones SOC2 Type II e ISO 27001, GDPR compliant. Servidores en AWS México con respaldo en Virginia. 2FA en todos los planes." },
-      { k: ["gracias", "excelente", "perfecto"], r: "¡Con mucho gusto! Si necesitas algo más, aquí estaré. Que tengas un excelente día." },
+      { k: ["hola", "buenas", "hey", "que tal"], r: "¡Hola! Bienvenido a Synapse. Puedo ayudarte con planes y precios, soporte técnico, o facturación. ¿Sobre qué necesitas información?" },
+      { k: ["ubicad", "donde", "dónde", "oficina", "dirección", "direccion"], r: "Nuestra sede principal está en Ciudad de México. Operamos con un equipo de 45+ personas en 3 países (MX, CO, AR). Servidores en AWS México (principal) + AWS Virginia (respaldo). Contacto: hola@empresa.com | (55) 1234-5678" },
+      { k: ["contacto", "teléfono", "telefono", "email", "correo", "llamar"], r: "Contacto: hola@empresa.com | (55) 1234-5678. Horario de oficina: Lun-Vie 9:00-18:00 CDMX. Soporte técnico extiende hasta las 7pm. Enterprise tiene soporte 24/7." },
+      { k: ["horario", "hora", "atienden", "abierto"], r: "Horario de atención: Lun-Vie 9:00-18:00 CDMX. Soporte técnico: hasta las 7pm. Enterprise: 24/7 con línea directa. Los fines de semana solo atendemos emergencias Enterprise." },
+      { k: ["empresa", "quienes", "quiénes", "que hacen", "qué hacen"], r: "Somos Synapse, plataforma SaaS de chatbots IA fundada en 2024. +2,000 empresas clientes, 45+ personas en 3 países. Ofrecemos chatbots multiagente con IA para atención al cliente, ventas y soporte." },
+      { k: ["seguridad", "datos", "privacidad", "cifrado", "certificacion"], r: "Seguridad es prioridad: cifrado AES-256 + TLS 1.3, certificaciones SOC2 Type II e ISO 27001, GDPR compliant. Servidores en AWS México con respaldo en Virginia. 2FA en todos los planes." },
+      { k: ["integracion", "integración", "conectar", "herramienta"], r: "Contamos con 50+ integraciones nativas: Slack, Teams, WhatsApp, HubSpot, Salesforce, Shopify, Zapier, n8n, Make.com, Stripe, MercadoPago y muchas más. Disponibles desde el Plan Pro." },
+      { k: ["gracias", "excelente", "perfecto", "genial"], r: "¡Con mucho gusto! Si necesitas algo más, aquí estaré. Que tengas un excelente día." },
+      { k: ["adios", "adiós", "bye", "hasta luego", "chao"], r: "¡Hasta pronto! Fue un gusto atenderte. Si necesitas algo en el futuro, aquí estaremos. ¡Éxito!" },
     ],
   },
 };
 
-function getDemoResponse(agentId, text) {
-  const a = DEMO[agentId]; if (!a) return "¿En qué puedo ayudarte?";
+const DEMO_EN = {
+  nova: {
+    default: "We have 3 plans: Basic ($99/mo, 3 users), Pro ($199/mo, 10 users + priority support) and Enterprise (custom, unlimited users + 99.9% SLA). All include a 14-day free trial. Which one fits your needs?",
+    patterns: [
+      { k: ["price", "cost", "how much", "plan"], r: "Our plans: Basic $99/mo, Pro $199/mo, Enterprise custom. Annual billing gives you 20% off. 14 days free, no credit card. Which one interests you?" },
+      { k: ["trial", "free", "test"], r: "We offer a 14-day free trial, no credit card required. Full access to the Pro plan. Want me to help you get started?" },
+      { k: ["enterprise", "corporate"], r: "Enterprise includes: unlimited users, 99.9% SLA, dedicated onboarding, 4h support, SSO/SAML and account manager. Custom pricing. Shall I connect you with sales?" },
+      { k: ["discount", "annual"], r: "With annual billing: Basic $79/mo (save $240/yr) and Pro $159/mo (save $480/yr). Interested?" },
+      { k: ["competition", "zendesk", "intercom"], r: "We're 40% cheaper than Zendesk, with setup in 15 min. Unlike Intercom, our AI is included at no extra cost per resolution. Want a demo?" },
+    ],
+  },
+  atlas: {
+    default: "To help you better, could you describe the error? For access issues, go to login > 'Forgot password?'. Support available Mon-Fri 9am-7pm CDMX.",
+    patterns: [
+      { k: ["login", "password", "access", "sign in", "can't"], r: "To reset: 1) Login screen > 'Forgot password?', 2) Enter your email, 3) Recovery link arrives in max 5 minutes. Check spam if it doesn't arrive." },
+      { k: ["integration", "connect", "api", "fail"], r: "Check: 1) API token is valid (Panel > API > Tokens), 2) Correct permissions, 3) Firewall isn't blocking our servers. Full docs at docs.empresa.com" },
+      { k: ["slow", "429", "error"], r: "Error 429 = request limit reached. Wait 60 seconds or consider upgrading for more capacity. If it persists, clear cache and try incognito mode." },
+      { k: ["talk", "support", "human", "person"], r: "Our human support is available Mon-Fri 9am-7pm CDMX. Contact us at soporte@empresa.com or (55) 1234-5678. Response time: Basic 48h, Pro 24h, Enterprise 4h. Want me to escalate?" },
+    ],
+  },
+  aria: {
+    default: "I can help you with billing. We accept cards, SPEI and OXXO Pay. CFDI invoices generated automatically on the 1st. What's your question?",
+    patterns: [
+      { k: ["cancel", "unsubscribe"], r: "To cancel: Settings > Subscription > Cancel. Effective at end of current cycle. Your data is retained for 90 days. Anything else?" },
+      { k: ["refund", "money back", "return"], r: "Full refund within the first 30 days. Email facturacion@empresa.com with your account number. Processed in 5-7 business days." },
+      { k: ["invoice", "receipt", "cfdi"], r: "CFDI invoices are generated on the 1st and sent to your registered email. For re-invoicing, email facturacion@empresa.com with RFC and business name." },
+      { k: ["oxxo", "spei", "transfer", "payment", "method"], r: "We accept: cards (Visa, MC, Amex), SPEI, OXXO Pay and bank transfer. OXXO generates a payment reference valid for 24h. SPEI processes in minutes. Need to change your payment method?" },
+      { k: ["change", "upgrade", "downgrade", "plan"], r: "Upgrade: applied immediately with proration. Downgrade: at the start of the next cycle. Both from Settings > Subscription. Enterprise requires contacting your account manager." },
+    ],
+  },
+  nexus: {
+    default: "I'm sorry about your experience. I understand the frustration and want to resolve this. I'm escalating your case now:\n\nsoporte@empresa.com\n(55) 1234-5678\n\nA human agent will contact you within 30 minutes. Ref: #ESC-" + Math.floor(Math.random() * 9000 + 1000),
+    patterns: [],
+  },
+  orion: {
+    default: "I can help you with information about plans, tech support, billing or company details. What topic do you need help with?",
+    patterns: [
+      { k: ["hello", "hi", "hey", "what's up"], r: "Hello! Welcome to Synapse. I can help you with plans and pricing, technical support, or billing. What do you need?" },
+      { k: ["location", "where", "office", "address"], r: "Our headquarters is in Mexico City. We operate with a team of 45+ people in 3 countries (MX, CO, AR). Servers on AWS Mexico (primary) + AWS Virginia (backup). Contact: hola@empresa.com | (55) 1234-5678" },
+      { k: ["contact", "phone", "email", "call"], r: "Contact: hola@empresa.com | (55) 1234-5678. Office hours: Mon-Fri 9:00-18:00 CDMX. Tech support extends to 7pm. Enterprise has 24/7 support." },
+      { k: ["hours", "schedule", "open", "available"], r: "Business hours: Mon-Fri 9:00-18:00 CDMX. Tech support: until 7pm. Enterprise: 24/7 with direct line. Weekends only for Enterprise emergencies." },
+      { k: ["company", "who", "what do"], r: "We are Synapse, an AI chatbot SaaS platform founded in 2024. 2,000+ business clients, 45+ people in 3 countries. We offer multi-agent AI chatbots for customer service, sales and support." },
+      { k: ["security", "data", "privacy", "encryption", "certification"], r: "Security is a priority: AES-256 + TLS 1.3 encryption, SOC2 Type II and ISO 27001 certifications, GDPR compliant. AWS servers in Mexico with Virginia backup. 2FA on all plans." },
+      { k: ["integration", "connect", "tool"], r: "We have 50+ native integrations: Slack, Teams, WhatsApp, HubSpot, Salesforce, Shopify, Zapier, n8n, Make.com, Stripe, MercadoPago and more. Available from the Pro plan." },
+      { k: ["thanks", "great", "perfect", "awesome"], r: "My pleasure! If you need anything else, I'm here. Have a great day!" },
+      { k: ["bye", "goodbye", "see you", "later"], r: "Goodbye! It was great helping you. If you need anything in the future, we'll be here. Take care!" },
+    ],
+  },
+};
+
+function getDemoResponse(agentId, text, lang) {
+  const demoSet = lang === "en" ? DEMO_EN : DEMO;
+  const a = demoSet[agentId]; if (!a) return lang === "en" ? "How can I help you?" : "¿En qué puedo ayudarte?";
   const norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   for (const p of a.patterns) { if (p.k.some(k => norm.includes(k))) return p.r; }
   return a.default;
 }
 
 // ─── SUGGESTIONS ────────────────────────────────────────────────────────────
-function getSuggestions(agentId, msgCount) {
+function getSuggestions(agentId, msgCount, lang) {
+  if (lang === "en") {
+    if (msgCount <= 1) return ["What are the plans?", "I have a technical issue", "I need my invoice", "What integrations do you have?"];
+    return {
+      nova: ["Free trial?", "Annual discount", "vs Zendesk", "Enterprise plan"],
+      atlas: ["Can't sign in", "Error 429", "Integration fails", "Talk to support"],
+      aria: ["I want to cancel", "Need a refund", "Change plan", "Do you accept OXXO?"],
+      nexus: ["Talk to a person", "I need a solution now"],
+      orion: ["Is my data secure?", "See plans", "Where are you located?"],
+    }[agentId] || ["How can I help?"];
+  }
   if (msgCount <= 1) return ["¿Cuáles son los planes?", "Tengo un problema técnico", "Necesito mi factura", "¿Qué integraciones tienen?"];
   return {
     nova: ["¿Prueba gratis?", "Descuento anual", "vs Zendesk", "Plan Enterprise"],
@@ -191,25 +267,26 @@ function AgentAvatar({ agentId, size = 32 }) {
   );
 }
 
-function UserAvatar() {
+function UserAvatar({ lang }) {
   return (
     <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.5)", fontFamily: "'DM Sans', sans-serif", flexShrink: 0 }}>
-      TÚ
+      {lang === "en" ? "YOU" : "TÚ"}
     </div>
   );
 }
 
-function TypingDots({ agent }) {
+function TypingDots({ agent, lang }) {
   const a = AGENTS[agent] || AGENTS.orion;
+  const text = lang === "en" ? `${a.name} is analyzing...` : `${a.name} está analizando...`;
   return (
     <div style={{ display: "flex", gap: 5, padding: "14px 18px", alignItems: "center" }}>
       {[0, 1, 2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: a.color, animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
-      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 6, fontStyle: "italic" }}>{a.name} está analizando...</span>
+      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", marginLeft: 6, fontStyle: "italic" }}>{text}</span>
     </div>
   );
 }
 
-function Message({ msg, onRate, isFirstFromAgent }) {
+function Message({ msg, onRate, isFirstFromAgent, lang }) {
   const isUser = msg.role === "user";
   const a = AGENTS[msg.agent] || AGENTS.orion;
   return (
@@ -219,7 +296,7 @@ function Message({ msg, onRate, isFirstFromAgent }) {
         {!isUser && isFirstFromAgent && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
             <span style={{ fontSize: 11, color: a.color, fontWeight: 600 }}>{a.name}</span>
-            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>· {a.role}</span>
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>· {agentRole(msg.agent, lang)}</span>
           </div>
         )}
         <div style={{
@@ -239,50 +316,54 @@ function Message({ msg, onRate, isFirstFromAgent }) {
           </div>
         )}
       </div>
-      {isUser && <UserAvatar />}
+      {isUser && <UserAvatar lang={lang} />}
     </div>
   );
 }
 
-function TransferIndicator({ to }) {
+function TransferIndicator({ to, lang }) {
   const a = AGENTS[to];
+  const label = lang === "en" ? `Transferred to ${a?.name}` : `Transferido a ${a?.name}`;
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "14px 0", animation: "transferFlash 0.6s ease" }}>
       <div style={{ height: 1, flex: 1, background: `linear-gradient(to right, transparent, ${a?.color}30)` }} />
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px", borderRadius: 20, background: `${a?.color}10`, border: `1px solid ${a?.color}20` }}>
         <AgentAvatar agentId={to} size={18} />
-        <span style={{ fontSize: 10, color: a?.color, fontWeight: 600 }}>Transferido a {a?.name}</span>
-        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>· {a?.role}</span>
+        <span style={{ fontSize: 10, color: a?.color, fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.2)" }}>· {agentRole(to, lang)}</span>
       </div>
       <div style={{ height: 1, flex: 1, background: `linear-gradient(to left, transparent, ${a?.color}30)` }} />
     </div>
   );
 }
 
-function StatsPanel({ messages, ratings }) {
+function StatsPanel({ messages, ratings, lang }) {
   const total = messages.filter(m => m.role === "user").length;
   const agentCounts = {};
   messages.filter(m => m.agent).forEach(m => { agentCounts[m.agent] = (agentCounts[m.agent] || 0) + 1; });
   const up = Object.values(ratings).filter(r => r === 1).length;
   const down = Object.values(ratings).filter(r => r === -1).length;
   const sat = up + down > 0 ? Math.round((up / (up + down)) * 100) : 0;
+  const t = lang === "en"
+    ? { messages: "Messages", satisfaction: "Satisfaction", distribution: "Distribution", rateHint: "Rate responses below" }
+    : { messages: "Mensajes", satisfaction: "Satisfacción", distribution: "Distribución", rateHint: "Califica respuestas abajo" };
 
   return (
     <div style={{ padding: "14px 20px", background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)", animation: "slideDown 0.25s ease" }}>
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div>
-          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Mensajes</span>
+          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{t.messages}</span>
           <p style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 700, color: "#F9FAFB" }}>{total}</p>
         </div>
         <div>
-          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Satisfacción</span>
+          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{t.satisfaction}</span>
           <p style={{ margin: "2px 0 0", fontSize: 18, fontWeight: 700, color: sat >= 70 ? "#6EE7C7" : sat >= 40 ? "#FDE68A" : up + down === 0 ? "rgba(255,255,255,0.15)" : "#FCA5A5" }}>
             {up + down > 0 ? `${sat}%` : "—"}
           </p>
-          {up + down === 0 && <span style={{ fontSize: 8, color: "rgba(255,255,255,0.15)" }}>Califica respuestas abajo</span>}
+          {up + down === 0 && <span style={{ fontSize: 8, color: "rgba(255,255,255,0.15)" }}>{t.rateHint}</span>}
         </div>
         <div style={{ flex: 1 }}>
-          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Distribución</span>
+          <span style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{t.distribution}</span>
           <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
             {Object.entries(agentCounts).map(([id, count]) => {
               const ag = AGENTS[id];
@@ -293,6 +374,23 @@ function StatsPanel({ messages, ratings }) {
       </div>
     </div>
   );
+}
+
+// ─── LANGUAGE DETECTION ──────────────────────────────────────────────────────
+const EN_WORDS = new Set(["the","is","are","was","were","have","has","had","will","would","can","could","do","does","did","i","you","he","she","it","we","they","my","your","this","that","what","how","why","when","where","who","which","not","no","yes","with","from","for","about","but","and","or","if","then","so","all","any","some","need","want","help","please","thanks","thank","hello","hi","hey"]);
+const ES_WORDS = new Set(["el","la","los","las","es","son","fue","era","han","tiene","haber","será","puede","puedo","hacer","hace","hizo","yo","tú","él","ella","nosotros","ellos","mi","tu","este","ese","qué","cómo","por","dónde","cuándo","quién","cuál","no","sí","con","de","para","sobre","pero","que","si","entonces","todo","algún","necesito","quiero","ayuda","gracias","hola","buenas"]);
+
+function detectLang(text) {
+  const words = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\s+/);
+  let en = 0, es = 0;
+  for (const w of words) {
+    if (EN_WORDS.has(w)) en++;
+    if (ES_WORDS.has(w)) es++;
+  }
+  if (en === 0 && es === 0) return null;
+  if (en > es) return "en";
+  if (es > en) return "es";
+  return null;
 }
 
 // ─── MAIN ───────────────────────────────────────────────────────────────────
@@ -309,6 +407,7 @@ export default function SynapseAssistant() {
   const [agent, setAgent] = useState("orion");
   const [showStats, setShowStats] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [lang, setLang] = useState("es");
   const [ratings, setRatings] = useState(() => { try { const s = localStorage.getItem("synapse_ratings"); if (s) return JSON.parse(s); } catch {} return {}; });
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
@@ -323,17 +422,18 @@ export default function SynapseAssistant() {
   }, [ratings]);
 
   const clearChat = useCallback(() => {
-    setMessages([{ id: ++msgId, role: "assistant", agent: "orion", content: "Conversación reiniciada. ¿En qué te ayudo?", timestamp: ts() }]);
+    const resetMsg = lang === "en" ? "Conversation reset. How can I help you?" : "Conversación reiniciada. ¿En qué te ayudo?";
+    setMessages([{ id: ++msgId, role: "assistant", agent: "orion", content: resetMsg, timestamp: ts() }]);
     setRatings({}); setAgent("orion");
     localStorage.removeItem("synapse_msgs"); localStorage.removeItem("synapse_ratings");
-  }, []);
+  }, [lang]);
 
   const exportChat = useCallback(() => {
     const blob = new Blob([JSON.stringify(messages, null, 2)], { type: "application/json" });
     const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = `synapse-chat-${Date.now()}.json`; a.click(); URL.revokeObjectURL(u);
   }, [messages]);
 
-  const suggestions = useMemo(() => getSuggestions(agent, messages.length), [agent, messages.length]);
+  const suggestions = useMemo(() => getSuggestions(agent, messages.length, lang), [agent, messages.length, lang]);
 
   // Track which messages are first from their agent
   const firstFromAgent = useMemo(() => {
@@ -353,6 +453,10 @@ export default function SynapseAssistant() {
     const content = (text || input).trim();
     if (!content || loading) return;
     setInput("");
+
+    // Auto-detect language from user input
+    const detected = detectLang(content);
+    if (detected) setLang(detected);
 
     setMessages(prev => [...prev, { id: ++msgId, role: "user", content, timestamp: ts() }]);
     setLoading(true);
@@ -379,11 +483,13 @@ export default function SynapseAssistant() {
         }),
       });
       const data = await response.json();
-      const reply = data.content?.[0]?.text || getDemoResponse(target, content);
+      const effectiveLang = detected || lang;
+      const reply = data.content?.[0]?.text || getDemoResponse(target, content, effectiveLang);
       setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: reply, timestamp: ts() }]);
     } catch {
+      const effectiveLang = detected || lang;
       await new Promise(r => setTimeout(r, delays[target] || 700));
-      setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: getDemoResponse(target, content), timestamp: ts() }]);
+      setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: getDemoResponse(target, content, effectiveLang), timestamp: ts() }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -421,15 +527,20 @@ export default function SynapseAssistant() {
               <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#F9FAFB", letterSpacing: "-0.02em" }}>Synapse</div>
               <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399", boxShadow: "0 0 6px #34D399" }} />
-                <span style={{ fontSize: 10, color: ca.color, fontWeight: 500, transition: "color 0.3s" }}>{ca.name} · {ca.role}</span>
+                <span style={{ fontSize: 10, color: ca.color, fontWeight: 500, transition: "color 0.3s" }}>{ca.name} · {agentRole(agent, lang)}</span>
               </div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
+            <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <button onClick={() => setLang("es")} style={{ background: lang === "es" ? `${ca.color}20` : "rgba(255,255,255,0.04)", border: "none", padding: "5px 8px", fontSize: 10, fontWeight: 600, color: lang === "es" ? ca.color : "#6B7280", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s", letterSpacing: "0.02em" }}>ES</button>
+              <div style={{ width: 1, background: "rgba(255,255,255,0.08)" }} />
+              <button onClick={() => setLang("en")} style={{ background: lang === "en" ? `${ca.color}20` : "rgba(255,255,255,0.04)", border: "none", padding: "5px 8px", fontSize: 10, fontWeight: 600, color: lang === "en" ? ca.color : "#6B7280", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s", letterSpacing: "0.02em" }}>EN</button>
+            </div>
             <button onClick={() => { setShowInfo(v => !v); setShowStats(false); }} title="Info" style={{ background: showInfo ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showInfo ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showInfo ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.info}</button>
             <button onClick={() => { setShowStats(v => !v); setShowInfo(false); }} title="Analytics" style={{ background: showStats ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showStats ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showStats ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.chart}</button>
-            <button onClick={exportChat} title="Exportar" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.download}</button>
-            <button onClick={clearChat} title="Limpiar" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.trash}</button>
+            <button onClick={exportChat} title={lang === "en" ? "Export" : "Exportar"} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.download}</button>
+            <button onClick={clearChat} title={lang === "en" ? "Clear" : "Limpiar"} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.trash}</button>
           </div>
         </div>
 
@@ -437,24 +548,27 @@ export default function SynapseAssistant() {
         {showInfo && (
           <div style={{ padding: "12px 20px", background: `${ca.color}06`, borderBottom: `1px solid ${ca.color}15`, animation: "slideDown 0.25s ease" }}>
             <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.5)", lineHeight: 1.8 }}>
-              <strong style={{ color: ca.color }}>5 agentes IA</strong> con clasificación de intención, detección de sentimiento y enrutamiento automático.
-              Cada agente tiene personalidad, base de conocimiento y tono propio. Powered by <strong>Claude API</strong>, orquestado con <strong>n8n</strong>.
+              {lang === "en" ? (
+                <><strong style={{ color: ca.color }}>5 AI agents</strong> with intent classification, sentiment detection and automatic routing. Each agent has its own personality, knowledge base and tone. Powered by <strong>Claude API</strong>, orchestrated with <strong>n8n</strong>.</>
+              ) : (
+                <><strong style={{ color: ca.color }}>5 agentes IA</strong> con clasificación de intención, detección de sentimiento y enrutamiento automático. Cada agente tiene personalidad, base de conocimiento y tono propio. Powered by <strong>Claude API</strong>, orquestado con <strong>n8n</strong>.</>
+              )}
             </p>
           </div>
         )}
 
         {/* STATS */}
-        {showStats && <StatsPanel messages={messages} ratings={ratings} />}
+        {showStats && <StatsPanel messages={messages} ratings={ratings} lang={lang} />}
 
         {/* MESSAGES */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 8px" }}>
           {messages.map(msg =>
-            msg.role === "transfer" ? <TransferIndicator key={msg.id} to={msg.to} /> : <Message key={msg.id} msg={msg} onRate={handleRate} isFirstFromAgent={firstFromAgent[msg.id]} />
+            msg.role === "transfer" ? <TransferIndicator key={msg.id} to={msg.to} lang={lang} /> : <Message key={msg.id} msg={msg} onRate={handleRate} isFirstFromAgent={firstFromAgent[msg.id]} lang={lang} />
           )}
           {loading && (
             <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginBottom: 16, animation: "msgIn 0.3s ease" }}>
               <AgentAvatar agentId={agent} />
-              <div style={{ background: "#161E2E", border: `1px solid ${ca.color}12`, borderRadius: "18px 18px 18px 4px" }}><TypingDots agent={agent} /></div>
+              <div style={{ background: "#161E2E", border: `1px solid ${ca.color}12`, borderRadius: "18px 18px 18px 4px" }}><TypingDots agent={agent} lang={lang} /></div>
             </div>
           )}
           <div ref={bottomRef} />
@@ -482,7 +596,7 @@ export default function SynapseAssistant() {
           >
             <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Escribe tu consulta..." rows={1} disabled={loading}
+              placeholder={lang === "en" ? "Type your message..." : "Escribe tu consulta..."} rows={1} disabled={loading}
               style={{ flex: 1, background: "transparent", border: "none", color: "#F9FAFB", fontSize: 14, lineHeight: 1.5, fontFamily: "'DM Sans', system-ui, sans-serif", minHeight: 22, maxHeight: 100, overflowY: "auto" }}
             />
             <button onClick={() => sendMessage()} disabled={!input.trim() || loading} style={{
