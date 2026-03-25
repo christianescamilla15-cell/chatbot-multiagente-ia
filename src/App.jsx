@@ -400,35 +400,206 @@ function buildContext(intents, lang) {
   return context;
 }
 
-function composeResponse(intents, sentiment, context, lang) {
-  const parts = [];
+function generateConversationalResponse(intents, sentiment, context, message, lang) {
+  const lower = message.toLowerCase()
+  const primaryIntent = intents[0]?.intent || 'general'
 
-  if (sentiment.escalate) {
-    parts.push(lang === 'en'
-      ? "I completely understand your frustration, and I'm sorry for the inconvenience. Let me help you right away."
-      : "Entiendo completamente tu frustracion y lamento la inconveniencia. Dejame ayudarte de inmediato.");
+  // GREETING — warm and inviting
+  if (/^(hola|hello|hi|hey|buenas|buenos|good|what's up|qué tal|que tal)/i.test(lower)) {
+    return lang === 'en'
+      ? "Hey there! Great to hear from you. I'm your Synapse assistant and I'm here to help. Do you have questions about our plans, need technical help, or anything else I can assist with?"
+      : '¡Hola! Qué gusto saludarte. Soy tu asistente de Synapse y estoy aquí para lo que necesites. ¿Tienes alguna duda sobre nuestros planes, necesitas ayuda técnica, o hay algo más en lo que pueda apoyarte?'
   }
 
-  intents.slice(0, 3).forEach(({ intent }, i) => {
-    const ctx = context.find(c => c.topic === intent);
-    if (!ctx) return;
+  // THANKS — acknowledge gracefully
+  if (/^(gracias|thanks|thank you|te agradezco|genial|perfect|excelente|awesome)/i.test(lower)) {
+    return lang === 'en'
+      ? "You're welcome! If you need anything else, I'm right here. 😊"
+      : '¡Con gusto! Si necesitas algo más, aquí estoy. 😊'
+  }
 
-    const sentences = ctx.data.split(/[.!?\n]+/).filter(s => s.trim().length > 10);
-    const relevant = sentences.slice(0, 3).map(s => s.trim().replace(/^[-#*]+\s*/, '')).join('. ');
+  // GOODBYE
+  if (/^(adios|adiós|bye|hasta luego|chao|goodbye|see you|later)/i.test(lower)) {
+    return lang === 'en'
+      ? "Take care! It was great chatting with you. If anything comes up, just come back anytime. 👋"
+      : '¡Hasta pronto! Fue un gusto ayudarte. Si surge algo, regresa cuando quieras. 👋'
+  }
 
-    if (i > 0) {
-      parts.push(lang === 'en' ? `\nRegarding ${intent}:` : `\nSobre ${intent}:`);
+  // PRICING — conversational, not a list dump
+  if (primaryIntent === 'pricing') {
+    const hasTeamQuestion = /equipo|team|cuántos|cuantos|how many|usuarios|users/i.test(lower)
+    const wantsEnterprise = /enterprise|empresa grande|large|corporat/i.test(lower)
+    const wantsBasic = /básico|basico|basic|económico|econom|cheap|barato/i.test(lower)
+    const wantsTrial = /prueba|trial|gratis|free|test|probar/i.test(lower)
+    const wantsDiscount = /descuento|discount|anual|annual|ahorro|save/i.test(lower)
+    const wantsCompare = /competencia|zendesk|intercom|freshdesk|competition|compare|vs/i.test(lower)
+
+    if (wantsEnterprise) {
+      return lang === 'en'
+        ? "For larger companies, our Enterprise plan is fully customized — unlimited users, 99.9% SLA, and a dedicated team. Best thing would be to schedule a quick call to understand exactly what you need. Want me to connect you with our sales team?"
+        : 'Para empresas grandes, nuestro plan Enterprise es completamente personalizado — usuarios ilimitados, SLA del 99.9%, y un equipo dedicado. Lo mejor es agendar una llamada rápida para entender exactamente qué necesitas. ¿Te parece si te paso con nuestro equipo de ventas?'
     }
-    if (relevant) parts.push(relevant + '.');
-  });
 
-  if (intents.length > 1) {
-    parts.push(lang === 'en'
-      ? "\nIs there anything else I can help with on any of these topics?"
-      : "\n\u00bfHay algo mas en lo que pueda ayudarte sobre alguno de estos temas?");
+    if (wantsBasic) {
+      return lang === 'en'
+        ? "The Basic plan is $99/month with up to 3 users. It's perfect to get started — you get 14 free days, no credit card needed. If you need more later, upgrading to Pro is super easy. Want me to walk you through what each plan includes?"
+        : 'El plan Básico está en $99 al mes e incluye hasta 3 usuarios. Es perfecto para empezar — tienes 14 días gratis para probarlo sin tarjeta. Si después necesitas más, el upgrade al Pro es súper sencillo. ¿Quieres que te cuente qué incluye cada uno?'
+    }
+
+    if (wantsTrial) {
+      return lang === 'en'
+        ? "Absolutely! You get 14 days completely free with full access to the Pro plan — no credit card needed. It's the best way to see if it fits your workflow. Want me to help you get started?"
+        : 'Por supuesto, tienes 14 días completamente gratis con acceso completo al Plan Pro, sin tarjeta de crédito. Es la mejor forma de ver si se adapta a tu flujo de trabajo. ¿Te ayudo a activarla?'
+    }
+
+    if (wantsDiscount) {
+      return lang === 'en'
+        ? "Great news — with annual billing you save 20%. That brings Basic down to $79/mo (saving $240/year) and Pro to $159/mo (saving $480/year). Pretty significant savings. Want to see a full comparison?"
+        : 'Buena noticia — con pago anual te ahorras 20%. El Básico baja a $79/mes (ahorras $240 al año) y el Pro a $159/mes (ahorras $480 al año). Es un ahorro bastante significativo. ¿Quieres ver una comparación completa?'
+    }
+
+    if (wantsCompare) {
+      return lang === 'en'
+        ? "Compared to alternatives, we're about 40% cheaper than Zendesk with a 15-minute setup vs their 2 weeks. Unlike Intercom, our AI is included at no extra cost — they charge $0.99 per resolution. Plus we have 50+ native integrations. Want a demo to see the difference?"
+        : 'Comparado con alternativas, somos un 40% más económicos que Zendesk con setup en 15 minutos vs sus 2 semanas. A diferencia de Intercom, nuestra IA está incluida sin costo extra — ellos cobran $0.99 por resolución. Además tenemos 50+ integraciones nativas. ¿Quieres una demo para ver la diferencia?'
+    }
+
+    if (hasTeamQuestion) {
+      return lang === 'en'
+        ? "It depends on your team size. For teams of up to 3, Basic ($99/mo) works great. For 4 to 10, Pro ($199/mo) is your best bet — it includes 24/7 priority support. For more than 10, Enterprise adapts to whatever you need. How many people would be using the platform?"
+        : 'Depende del tamaño de tu equipo. Para equipos de hasta 3 personas el Básico ($99/mes) funciona genial. Si son entre 4 y 10, el Pro ($199/mes) es la mejor opción porque incluye soporte prioritario 24/7. Para más de 10, Enterprise se adapta a lo que necesites. ¿Cuántas personas usarían la plataforma?'
+    }
+
+    return lang === 'en'
+      ? "Sure! We have three options: Basic starts at $99/mo for small teams (up to 3 users), Pro at $199/mo comes with 24/7 support and up to 10 users, and Enterprise is customized for bigger needs. They all include a 14-day free trial. Which sounds closest to what you're looking for?"
+      : 'Claro, te cuento. Tenemos tres opciones: el Básico arranca en $99/mes para equipos pequeños (hasta 3 usuarios), el Pro en $199/mes viene con soporte 24/7 y hasta 10 usuarios, y Enterprise es personalizado para necesidades más grandes. Todos incluyen 14 días gratis. ¿Cuál se acerca más a lo que buscas?'
   }
 
-  return parts.join(' ').trim();
+  // SUPPORT — empathetic, diagnostic
+  if (primaryIntent === 'support') {
+    const hasLoginIssue = /login|contraseña|password|acceso|entrar|sign in|can't log/i.test(lower)
+    const hasSpecificIssue = /api|dashboard|widget|notificaci|carga|slow|lento|error|500|404|timeout|429/i.test(lower)
+    const hasIntegrationIssue = /integración|integracion|conectar|connect|no conecta|integration/i.test(lower)
+
+    if (sentiment.escalate) {
+      return lang === 'en'
+        ? "I completely understand your frustration and I take it very seriously. Let me escalate this right now so a human agent can review it as a priority. In the meantime, could you tell me what specific error you're seeing? That way when they reach out, they'll have the full context. You can also reach us directly at soporte@empresa.com or call (55) 1234-5678."
+        : 'Entiendo tu frustración y la tomo muy en serio. Déjame escalarlo ahora mismo para que un agente humano lo revise de forma prioritaria. Mientras tanto, ¿podrías decirme qué error específico ves? Así cuando te contacten ya tienen el contexto. Puedes escribirnos directo a soporte@empresa.com o llamar al (55) 1234-5678.'
+    }
+
+    if (hasLoginIssue) {
+      return lang === 'en'
+        ? "Login issues are usually quick to fix. Go to the login screen, click 'Forgot password?', and you'll get a recovery link in about 5 minutes. Check your spam folder if it doesn't show up. Still stuck after that? Let me know and I'll dig deeper."
+        : 'Los problemas de acceso suelen resolverse rápido. Ve a la pantalla de login, haz clic en "¿Olvidaste tu contraseña?" y recibirás un link de recuperación en unos 5 minutos. Revisa spam si no llega. ¿Sigues sin poder entrar después de eso? Dime y profundizo.'
+    }
+
+    if (hasIntegrationIssue) {
+      return lang === 'en'
+        ? "Integration issues can be tricky. Let's check the basics: 1) Is your API token still valid? You can verify in Panel > API > Tokens. 2) Are the permissions set correctly? 3) Is your firewall allowing our servers? Full docs are at docs.empresa.com. Which integration are you working with?"
+        : 'Los problemas de integración pueden ser engañosos. Verifiquemos lo básico: 1) ¿Tu token API está vigente? Lo puedes ver en Panel > API > Tokens. 2) ¿Los permisos están correctos? 3) ¿Tu firewall permite nuestros servidores? Docs completos en docs.empresa.com. ¿Con qué integración estás trabajando?'
+    }
+
+    if (hasSpecificIssue) {
+      return lang === 'en'
+        ? "Let me help you with that. First, could you try these quick steps? 1) Open an incognito window and test there, 2) Check that your API key is active in Settings. If the issue persists after that, I'll escalate it directly to the tech team with a priority ticket. What browser are you using?"
+        : 'Voy a ayudarte con eso. Primero, ¿podrías intentar estos pasos rápidos? 1) Abre una ventana de incógnito y prueba ahí, 2) Verifica que tu API key esté activa en Configuración. Si el problema persiste después de esto, lo escalo directamente al equipo técnico con un ticket prioritario. ¿Qué navegador estás usando?'
+    }
+
+    return lang === 'en'
+      ? "What issue are you experiencing? If you give me the details I can point you in the right direction — sometimes it's a quick fix, and if not, I'll create a ticket for the tech team. Our support hours are Monday through Friday, 9am to 7pm Mexico City time."
+      : '¿Qué problema estás teniendo? Si me cuentas los detalles puedo orientarte mejor — a veces es algo que se resuelve rápido, y si no, creo un ticket para el equipo técnico. Nuestro horario de soporte es de lunes a viernes, 9am a 7pm hora CDMX.'
+  }
+
+  // BILLING — precise but friendly
+  if (primaryIntent === 'billing') {
+    const wantsCancel = /cancel|cancelar|baja/i.test(lower)
+    const wantsRefund = /reembolso|refund|devol|money back/i.test(lower)
+    const wantsInvoice = /factura|invoice|cfdi|recibo|comprobante/i.test(lower)
+    const wantsPayment = /oxxo|spei|transferencia|pago|metodo|method|payment|tarjeta|card/i.test(lower)
+    const wantsChange = /cambiar|upgrade|downgrade|change plan/i.test(lower)
+
+    if (wantsCancel) {
+      return lang === 'en'
+        ? "Sorry to hear you're considering canceling. Before you do, is there anything we can improve? If you've decided, you can cancel from Settings > Subscription. Your access continues until the end of the current billing cycle, and you have 30 days to reactivate if you change your mind. Can I ask what led to this decision?"
+        : 'Lamento escuchar que estás considerando cancelar. Antes de hacerlo, ¿hay algo que podamos mejorar? Si ya lo decidiste, puedes cancelar desde Configuración > Suscripción. Tu acceso continúa hasta el final del ciclo de facturación actual, y tienes 30 días para reactivar si cambias de opinión. ¿Puedo preguntar qué te llevó a esta decisión?'
+    }
+
+    if (wantsRefund) {
+      return lang === 'en'
+        ? "Our refund policy covers the first 30 days — if you're within that window, you get a full refund, no questions asked. When did you subscribe? I'll check if it applies and process it right away."
+        : 'Nuestra política de reembolso cubre los primeros 30 días — si estás dentro de ese periodo, el reembolso es completo y sin preguntas. ¿Cuándo realizaste tu suscripción? Así verifico si aplica y te lo proceso de inmediato.'
+    }
+
+    if (wantsInvoice) {
+      return lang === 'en'
+        ? "CFDI invoices are generated automatically on the 1st of each month and sent to your registered email. If you need a specific invoice or to update your tax info, you can do that from Settings > Billing. Need help with anything specific?"
+        : 'Las facturas CFDI se generan automáticamente el día 1 de cada mes y se envían al correo registrado. Si necesitas una factura específica o modificar tus datos fiscales, puedes hacerlo desde Configuración > Facturación. ¿Necesitas ayuda con algo en particular?'
+    }
+
+    if (wantsPayment) {
+      return lang === 'en'
+        ? "We accept Visa, Mastercard, Amex, SPEI (processes in minutes), OXXO Pay (24h payment reference), and bank transfers. Need to change your current payment method? You can do it from Settings > Billing anytime."
+        : 'Aceptamos Visa, Mastercard, Amex, SPEI (se acredita en minutos), OXXO Pay (referencia con vigencia de 24h) y transferencia bancaria. ¿Necesitas cambiar tu método de pago actual? Lo puedes hacer desde Configuración > Facturación cuando quieras.'
+    }
+
+    if (wantsChange) {
+      return lang === 'en'
+        ? "Upgrades apply immediately with prorated billing, and downgrades take effect at the start of your next cycle. Both can be done from Settings > Subscription. For Enterprise changes, you'd need to contact your account manager. What change are you looking to make?"
+        : 'Los upgrades se aplican de inmediato con prorrateo, y los downgrades al inicio del siguiente ciclo. Ambos se hacen desde Configuración > Suscripción. Para cambios Enterprise, necesitas contactar a tu account manager. ¿Qué cambio estás buscando hacer?'
+    }
+
+    return lang === 'en'
+      ? "How can I help with billing? I can answer questions about charges, invoices, payment methods (we accept Visa, MC, SPEI, and OXXO), or subscription changes. Tell me more."
+      : '¿En qué te puedo ayudar con facturación? Puedo resolver dudas sobre cobros, facturas, métodos de pago (aceptamos Visa, MC, SPEI y OXXO), o cambios en tu suscripción. Cuéntame.'
+  }
+
+  // INTEGRATION — helpful and specific
+  if (primaryIntent === 'integration') {
+    const specificTool = lower.match(/slack|whatsapp|teams|hubspot|salesforce|shopify|zapier|n8n|make|stripe|mercadopago|discord|telegram|pipedrive|zoho/i)
+
+    if (specificTool) {
+      const tool = specificTool[0]
+      return lang === 'en'
+        ? `Yes, we integrate with ${tool}. Setup takes about 5 minutes — basically you generate an API key from your dashboard and connect it in the integrations section. Do you have an active ${tool} account? I can walk you through it step by step.`
+        : `Sí, tenemos integración con ${tool}. La configuración toma unos 5 minutos — básicamente generas un API key desde tu panel y lo conectas en la sección de integraciones. ¿Ya tienes una cuenta activa con ${tool}? Te puedo guiar paso a paso.`
+    }
+
+    return lang === 'en'
+      ? "We have 50+ integrations available — the most popular are Slack, WhatsApp, Teams, HubSpot, and Zapier. What tool do you need to connect? I'll tell you exactly how to do it."
+      : 'Tenemos más de 50 integraciones disponibles — las más populares son Slack, WhatsApp, Teams, HubSpot y Zapier. ¿Con qué herramienta necesitas conectar? Te digo exactamente cómo hacerlo.'
+  }
+
+  // SECURITY
+  if (primaryIntent === 'security') {
+    return lang === 'en'
+      ? "Security is our top priority. Your data is encrypted with AES-256 at rest and TLS 1.3 in transit. We hold SOC2 Type II, ISO 27001 certifications, and are GDPR compliant. Servers are on AWS (Mexico and Virginia) with 2FA available on all plans. Any specific security or compliance questions?"
+      : 'La seguridad es nuestra prioridad. Tus datos están cifrados con AES-256 en reposo y TLS 1.3 en tránsito. Contamos con certificaciones SOC2 Type II, ISO 27001, y cumplimos GDPR. Los servidores están en AWS (México y Virginia) con 2FA disponible en todos los planes. ¿Tienes alguna pregunta específica sobre seguridad o compliance?'
+  }
+
+  // MULTI-INTENT — address both conversationally
+  if (intents.length > 1 && intents[0].weight > 0 && intents[1]?.weight > 0) {
+    const topicNames = {
+      pricing: lang === 'en' ? 'pricing' : 'precios',
+      support: lang === 'en' ? 'support' : 'soporte',
+      billing: lang === 'en' ? 'billing' : 'facturación',
+      integration: lang === 'en' ? 'integrations' : 'integraciones',
+      security: lang === 'en' ? 'security' : 'seguridad',
+      general: lang === 'en' ? 'general info' : 'información general',
+    }
+
+    const primaryResponse = generateConversationalResponse([intents[0]], sentiment, context, message, lang)
+    const secondTopic = topicNames[intents[1].intent] || intents[1].intent
+    const secondAck = lang === 'en'
+      ? `\n\nYou also mentioned ${secondTopic} — happy to help with that next. Shall we start with this?`
+      : `\n\nTambién mencionaste ${secondTopic} — con gusto te ayudo con eso después. ¿Empezamos por esto?`
+
+    return primaryResponse + secondAck
+  }
+
+  // DEFAULT — friendly and open
+  return lang === 'en'
+    ? "I'm here to help! I can walk you through our plans and pricing, troubleshoot technical issues, help with billing, or guide you through integrations. What do you need?"
+    : 'Estoy aquí para ayudarte. Puedo orientarte sobre nuestros planes y precios, resolver problemas técnicos, ayudar con facturación, o guiarte con integraciones. ¿Qué necesitas?'
 }
 
 function routeToAgent(intents, sentiment) {
@@ -442,11 +613,8 @@ function getAgenticDemoResponse(message, lang) {
   const intents = classifyIntents(message, lang);
   const sentiment = analyzeSentiment(message);
   const context = buildContext(intents, lang);
-  const response = composeResponse(intents, sentiment, context, lang);
+  const response = generateConversationalResponse(intents, sentiment, context, message, lang);
   const agent = routeToAgent(intents, sentiment);
-
-  // If pipeline produced empty response, return null so caller can fall back
-  if (!response) return null;
 
   return { response, agent, intents: intents.map(i => i.intent), sentiment: sentiment.sentiment };
 }
