@@ -90,6 +90,24 @@ const KB = {
 - Upgrade: inmediato, prorrateo del ciclo
 - Downgrade: al inicio del siguiente ciclo`,
 
+  integraciones: `## Integraciones (50+)
+- Comunicación: Slack, Teams, Discord, Zoom, WhatsApp, Telegram
+- CRM: Salesforce, HubSpot, Pipedrive, Zoho, Monday.com
+- Automatización: Zapier, n8n, Make.com, Power Automate
+- eCommerce: Shopify, WooCommerce, MercadoLibre
+- Pagos: Stripe, MercadoPago, Conekta, OpenPay
+- API REST disponible desde Plan Pro, webhooks en todos los planes
+- Documentación completa en docs.empresa.com/integrations`,
+
+  seguridad: `## Seguridad y Privacidad
+- Cifrado AES-256 en reposo + TLS 1.3 en tránsito
+- Certificaciones: SOC2 Type II, ISO 27001, GDPR compliant
+- 2FA obligatorio en todos los planes
+- Servidores AWS México (principal) + AWS Virginia (respaldo)
+- Auditorías de seguridad trimestrales por firma externa
+- Retención de datos configurable, eliminación bajo demanda
+- Cumplimiento con Ley Federal de Protección de Datos Personales (México)`,
+
   general: `## Empresa
 - Fundada 2024, CDMX, 45+ personas, +2,000 clientes
 - Certificaciones: SOC2 Type II, ISO 27001, GDPR
@@ -298,6 +316,139 @@ function getDemoResponse(agentId, text, lang) {
     }
   }
   return (typeof a.default === "object") ? (a.default[lang] || a.default.es) : a.default;
+}
+
+// ─── AGENTIC DEMO PIPELINE ──────────────────────────────────────────────
+
+function classifyIntents(message, lang) {
+  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const intents = [];
+
+  const intentPatterns = {
+    pricing: {
+      keywords: ['precio','costo','plan','cuanto','tarifa','price','cost','how much','pricing','rate','subscription','descuento','discount','anual','annual','enterprise','pro','basico','comprar','contratar','buy','purchase'],
+      weight: 0,
+    },
+    support: {
+      keywords: ['error','problema','no funciona','ayuda','bug','falla','broken','issue','help','not working','crash','slow','lento','429','no carga','login','contrasena','password','configurar','instalar'],
+      weight: 0,
+    },
+    billing: {
+      keywords: ['factura','cobro','pago','cancelar','reembolso','invoice','payment','cancel','refund','charge','billing','cfdi','oxxo','spei','transferencia','tarjeta','card','suscripcion','subscription'],
+      weight: 0,
+    },
+    integration: {
+      keywords: ['integrar','conectar','api','webhook','slack','whatsapp','zapier','n8n','integrate','connect','teams','hubspot','salesforce','shopify','stripe'],
+      weight: 0,
+    },
+    security: {
+      keywords: ['seguro','seguridad','datos','privacidad','cifrado','security','secure','data','privacy','encryption','gdpr','compliance','soc2','iso','certificacion','2fa'],
+      weight: 0,
+    },
+    general: {
+      keywords: ['hola','hello','hi','info','informacion','quien','who','que','what','como','how','donde','where','empresa','company','contacto','contact','horario','hours'],
+      weight: 0,
+    },
+  };
+
+  for (const [intent, config] of Object.entries(intentPatterns)) {
+    config.weight = config.keywords.filter(k => lower.includes(k.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).length;
+    if (config.weight > 0) intents.push({ intent, weight: config.weight });
+  }
+
+  intents.sort((a, b) => b.weight - a.weight);
+
+  if (intents.length === 0) intents.push({ intent: 'general', weight: 1 });
+
+  return intents;
+}
+
+function analyzeSentiment(message) {
+  const lower = message.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const frustrated = ['frustrado','harto','terrible','molesto','enojado','angry','frustrated','annoyed','awful','worst','hate','furious','disappointed','inaceptable','unacceptable','pesimo','queja','complaint'];
+  const urgent = ['urgente','ahora','ya','inmediato','urgent','now','immediately','asap','emergency'];
+  const positive = ['gracias','excelente','genial','thanks','great','awesome','love','perfect','perfecto'];
+
+  const norm = (w) => w.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const frustrationScore = frustrated.filter(w => lower.includes(norm(w))).length;
+  const urgencyScore = urgent.filter(w => lower.includes(norm(w))).length;
+  const positiveScore = positive.filter(w => lower.includes(norm(w))).length;
+
+  if (frustrationScore >= 2) return { sentiment: 'frustrated', escalate: true };
+  if (frustrationScore >= 1 || urgencyScore >= 1) return { sentiment: 'urgent', escalate: false };
+  if (positiveScore >= 1) return { sentiment: 'positive', escalate: false };
+  return { sentiment: 'neutral', escalate: false };
+}
+
+function buildContext(intents, lang) {
+  const intentToKB = {
+    pricing: 'ventas',
+    support: 'soporte',
+    billing: 'facturacion',
+    integration: 'integraciones',
+    security: 'seguridad',
+    general: 'general',
+  };
+
+  const context = [];
+  intents.forEach(({ intent }) => {
+    const kbKey = intentToKB[intent];
+    if (kbKey && KB[kbKey]) {
+      context.push({ topic: intent, data: KB[kbKey] });
+    }
+  });
+  return context;
+}
+
+function composeResponse(intents, sentiment, context, lang) {
+  const parts = [];
+
+  if (sentiment.escalate) {
+    parts.push(lang === 'en'
+      ? "I completely understand your frustration, and I'm sorry for the inconvenience. Let me help you right away."
+      : "Entiendo completamente tu frustracion y lamento la inconveniencia. Dejame ayudarte de inmediato.");
+  }
+
+  intents.slice(0, 3).forEach(({ intent }, i) => {
+    const ctx = context.find(c => c.topic === intent);
+    if (!ctx) return;
+
+    const sentences = ctx.data.split(/[.!?\n]+/).filter(s => s.trim().length > 10);
+    const relevant = sentences.slice(0, 3).map(s => s.trim().replace(/^[-#*]+\s*/, '')).join('. ');
+
+    if (i > 0) {
+      parts.push(lang === 'en' ? `\nRegarding ${intent}:` : `\nSobre ${intent}:`);
+    }
+    if (relevant) parts.push(relevant + '.');
+  });
+
+  if (intents.length > 1) {
+    parts.push(lang === 'en'
+      ? "\nIs there anything else I can help with on any of these topics?"
+      : "\n\u00bfHay algo mas en lo que pueda ayudarte sobre alguno de estos temas?");
+  }
+
+  return parts.join(' ').trim();
+}
+
+function routeToAgent(intents, sentiment) {
+  if (sentiment.escalate) return 'nexus';
+  const primary = intents[0]?.intent || 'general';
+  const agentMap = { pricing: 'nova', support: 'atlas', billing: 'aria', integration: 'atlas', security: 'orion', general: 'orion' };
+  return agentMap[primary] || 'orion';
+}
+
+function getAgenticDemoResponse(message, lang) {
+  const intents = classifyIntents(message, lang);
+  const sentiment = analyzeSentiment(message);
+  const context = buildContext(intents, lang);
+  const response = composeResponse(intents, sentiment, context, lang);
+  const agent = routeToAgent(intents, sentiment);
+
+  // If pipeline produced empty response, return null so caller can fall back
+  if (!response) return null;
+
+  return { response, agent, intents: intents.map(i => i.intent), sentiment: sentiment.sentiment };
 }
 
 // ─── SUGGESTIONS ────────────────────────────────────────────────────────────
@@ -538,7 +689,7 @@ function TourOverlay({ step, lang, onSkip, onNext, onTryChat, onTryStats, onFini
               background: lang === 'es' ? 'rgba(99,102,241,0.1)' : 'transparent',
               color: lang === 'es' ? '#a5b4fc' : '#64748b',
               cursor: 'pointer', fontSize: '.85rem', fontWeight: lang === 'es' ? 700 : 400,
-            }}>Espa\u00f1ol</button>
+            }}>Español</button>
             <button onClick={() => setLang('en')} style={{
               padding: '6px 16px', borderRadius: 6,
               border: lang === 'en' ? '2px solid #6EE7C7' : '1px solid #475569',
@@ -690,7 +841,12 @@ export default function SynapseAssistant() {
     setMessages(prev => [...prev, { id: ++msgId, role: "user", content, timestamp: ts() }]);
     setLoading(true);
 
-    const { agent: target, confidence } = classifyIntent(content);
+    const effectiveLang = detected || lang;
+
+    // Run agentic pipeline for smart routing + multi-intent response
+    const agenticResult = getAgenticDemoResponse(content, effectiveLang);
+    const target = agenticResult ? agenticResult.agent : classifyIntent(content).agent;
+
     const doTransfer = target !== agent;
     if (doTransfer) {
       setMessages(prev => [...prev, { id: ++msgId, role: "transfer", to: target }]);
@@ -707,18 +863,18 @@ export default function SynapseAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 800,
-          system: getSystemPrompt(target, detected || lang),
+          system: getSystemPrompt(target, effectiveLang),
           messages: messages.filter(m => m.role === "user" || m.role === "assistant").slice(-10).concat([{ role: "user", content }]).map(m => ({ role: m.role, content: m.content })),
         }),
       });
       const data = await response.json();
-      const effectiveLang = detected || lang;
-      const reply = data.content?.[0]?.text || getDemoResponse(target, content, effectiveLang);
+      const reply = data.content?.[0]?.text
+        || (agenticResult ? agenticResult.response : getDemoResponse(target, content, effectiveLang));
       setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: reply, timestamp: ts() }]);
     } catch {
-      const effectiveLang = detected || lang;
       await new Promise(r => setTimeout(r, delays[target] || 700));
-      setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: getDemoResponse(target, content, effectiveLang), timestamp: ts() }]);
+      const reply = agenticResult ? agenticResult.response : getDemoResponse(target, content, effectiveLang);
+      setMessages(prev => [...prev, { id: ++msgId, role: "assistant", agent: target, content: reply, timestamp: ts() }]);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -874,10 +1030,11 @@ export default function SynapseAssistant() {
           onSkip={() => { setTourStep(null); }}
           onNext={(next) => { setTourStep(next); }}
           onTryChat={() => {
-            setInput("\u00bfCu\u00e1nto cuesta el plan Pro?");
+            const demoMsg = lang === 'en' ? "How much does the Pro plan cost?" : "¿Cuánto cuesta el plan Pro?";
+            setInput(demoMsg);
             setTourStep(null);
             setTimeout(() => {
-              sendMessage("\u00bfCu\u00e1nto cuesta el plan Pro?");
+              sendMessage(demoMsg);
               setTimeout(() => setTourStep(3), 1800);
             }, 300);
           }}
