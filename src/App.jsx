@@ -126,123 +126,178 @@ function classifyIntent(text) {
 }
 
 // ─── AGENT SYSTEM PROMPTS ───────────────────────────────────────────────────
-function getSystemPrompt(agentId) {
+function getSystemPrompt(agentId, lang) {
   const a = AGENTS[agentId];
   const kbMap = { nova: "ventas", atlas: "soporte", aria: "facturacion", nexus: null, orion: "general" };
   const kbContent = kbMap[agentId] ? KB[kbMap[agentId]] : "";
+  const langRule = lang === "en"
+    ? "English, clear, concise, professional"
+    : "Español, claro, conciso, profesional";
+  const roleName = agentRole(agentId, lang);
 
-  if (agentId === "nexus") return `Eres ${a.name}, agente de escalamiento empático. 1) Empatiza genuinamente, 2) Reconoce el problema sin excusas, 3) Ofrece escalar a agente humano, 4) Da contacto: soporte@empresa.com, (55) 1234-5678, 5) Máximo 30 min respuesta humana. Español, max 4 líneas.`;
+  if (agentId === "nexus") {
+    return lang === "en"
+      ? `You are ${a.name}, an empathetic escalation agent. 1) Empathize genuinely, 2) Acknowledge the problem without excuses, 3) Offer to escalate to a human agent, 4) Provide contact: soporte@empresa.com, (55) 1234-5678, 5) Max 30 min human response. English, max 4 lines.`
+      : `Eres ${a.name}, agente de escalamiento empático. 1) Empatiza genuinamente, 2) Reconoce el problema sin excusas, 3) Ofrece escalar a agente humano, 4) Da contacto: soporte@empresa.com, (55) 1234-5678, 5) Máximo 30 min respuesta humana. Español, max 4 líneas.`;
+  }
 
-  return `Eres ${a.name}, agente de ${a.role} de una empresa SaaS.\n\nBase de conocimiento:\n${kbContent}\n${KB.general}\n\nReglas:\n- Español, claro, conciso, profesional\n- Usa datos específicos de la KB (precios, tiempos, pasos)\n- Si no sabes, di que escalarás\n- Nunca inventes\n- Max 4-5 líneas\n- Incluye datos concretos cuando sea relevante`;
+  const intro = lang === "en"
+    ? `You are ${a.name}, ${roleName} agent of a SaaS company.`
+    : `Eres ${a.name}, agente de ${roleName} de una empresa SaaS.`;
+  const rulesHeader = lang === "en" ? "Rules" : "Reglas";
+  const kbHeader = lang === "en" ? "Knowledge base" : "Base de conocimiento";
+  const rules = lang === "en"
+    ? `- ${langRule}\n- Use specific data from the KB (prices, times, steps)\n- If you don't know, say you'll escalate\n- Never make things up\n- Max 4-5 lines\n- Include concrete data when relevant`
+    : `- ${langRule}\n- Usa datos específicos de la KB (precios, tiempos, pasos)\n- Si no sabes, di que escalarás\n- Nunca inventes\n- Max 4-5 líneas\n- Incluye datos concretos cuando sea relevante`;
+
+  return `${intro}\n\n${kbHeader}:\n${kbContent}\n${KB.general}\n\n${rulesHeader}:\n${rules}`;
 }
 
 // ─── DEMO RESPONSES ─────────────────────────────────────────────────────────
+const DEMO_ESC_REF = Math.floor(Math.random() * 9000 + 1000);
 const DEMO = {
   nova: {
-    default: "Tenemos 3 planes: Básico ($99/mes, 3 usuarios), Pro ($199/mes, 10 usuarios + soporte prioritario) y Enterprise (personalizado, usuarios ilimitados + SLA 99.9%). Todos incluyen 14 días de prueba gratuita. ¿Cuál se ajusta a tus necesidades?",
+    default: {
+      es: "Tenemos 3 planes: Básico ($99/mes, 3 usuarios), Pro ($199/mes, 10 usuarios + soporte prioritario) y Enterprise (personalizado, usuarios ilimitados + SLA 99.9%). Todos incluyen 14 días de prueba gratuita. ¿Cuál se ajusta a tus necesidades?",
+      en: "We have 3 plans: Basic ($99/mo, 3 users), Pro ($199/mo, 10 users + priority support) and Enterprise (custom, unlimited users + 99.9% SLA). All include a 14-day free trial. Which one fits your needs?",
+    },
     patterns: [
-      { k: ["precio", "costo", "cuanto", "plan"], r: "Nuestros planes: Básico $99/mes, Pro $199/mes, Enterprise personalizado. Con pago anual obtienes 20% de descuento. 14 días gratis sin tarjeta. ¿Cuál te interesa?" },
-      { k: ["prueba", "trial", "gratis"], r: "Ofrecemos 14 días de prueba completamente gratis, sin tarjeta de crédito. Acceso completo al Plan Pro. ¿Te ayudo a activarla?" },
-      { k: ["enterprise", "corporativo"], r: "Enterprise incluye: usuarios ilimitados, SLA 99.9%, onboarding dedicado, soporte 4h, SSO/SAML y account manager. Precio según necesidades. ¿Te conecto con ventas?" },
-      { k: ["descuento", "anual"], r: "Con pago anual: Básico $79/mes (ahorro $240/año) y Pro $159/mes (ahorro $480/año). ¿Te interesa?" },
-      { k: ["competencia", "zendesk", "intercom"], r: "Somos 40% más económicos que Zendesk, con setup en 15 min. A diferencia de Intercom, nuestra IA está incluida sin costo extra por resolución. ¿Quieres una demo?" },
+      { k: ["precio", "costo", "cuanto", "plan", "price", "cost", "how much"], r: {
+        es: "Nuestros planes: Básico $99/mes, Pro $199/mes, Enterprise personalizado. Con pago anual obtienes 20% de descuento. 14 días gratis sin tarjeta. ¿Cuál te interesa?",
+        en: "Our plans: Basic $99/mo, Pro $199/mo, Enterprise custom. Annual billing gives you 20% off. 14 days free, no credit card. Which one interests you?",
+      }},
+      { k: ["prueba", "trial", "gratis", "free", "test"], r: {
+        es: "Ofrecemos 14 días de prueba completamente gratis, sin tarjeta de crédito. Acceso completo al Plan Pro. ¿Te ayudo a activarla?",
+        en: "We offer a 14-day free trial, no credit card required. Full access to the Pro plan. Want me to help you get started?",
+      }},
+      { k: ["enterprise", "corporativo", "corporate"], r: {
+        es: "Enterprise incluye: usuarios ilimitados, SLA 99.9%, onboarding dedicado, soporte 4h, SSO/SAML y account manager. Precio según necesidades. ¿Te conecto con ventas?",
+        en: "Enterprise includes: unlimited users, 99.9% SLA, dedicated onboarding, 4h support, SSO/SAML and account manager. Custom pricing. Shall I connect you with sales?",
+      }},
+      { k: ["descuento", "anual", "discount", "annual"], r: {
+        es: "Con pago anual: Básico $79/mes (ahorro $240/año) y Pro $159/mes (ahorro $480/año). ¿Te interesa?",
+        en: "With annual billing: Basic $79/mo (save $240/yr) and Pro $159/mo (save $480/yr). Interested?",
+      }},
+      { k: ["competencia", "zendesk", "intercom", "competition", "compare"], r: {
+        es: "Somos 40% más económicos que Zendesk, con setup en 15 min. A diferencia de Intercom, nuestra IA está incluida sin costo extra por resolución. ¿Quieres una demo?",
+        en: "We're 40% cheaper than Zendesk, with setup in 15 min. Unlike Intercom, our AI is included at no extra cost per resolution. Want a demo?",
+      }},
     ],
   },
   atlas: {
-    default: "Para ayudarte mejor, ¿podrías describir el error? Si es acceso, ve a login > '¿Olvidaste tu contraseña?'. Soporte disponible Lun-Vie 9am-7pm CDMX.",
+    default: {
+      es: "Para ayudarte mejor, ¿podrías describir el error? Si es acceso, ve a login > '¿Olvidaste tu contraseña?'. Soporte disponible Lun-Vie 9am-7pm CDMX.",
+      en: "To help you better, could you describe the error? For access issues, go to login > 'Forgot password?'. Support available Mon-Fri 9am-7pm CDMX.",
+    },
     patterns: [
-      { k: ["login", "contraseña", "acceso", "entrar", "puedo"], r: "Para restablecer: 1) Pantalla de login > '¿Olvidaste tu contraseña?', 2) Ingresa tu email, 3) Link de recuperación en máximo 5 minutos. Revisa spam si no llega." },
-      { k: ["integración", "conectar", "api", "falla"], r: "Verifica: 1) Token API vigente (Panel > API > Tokens), 2) Permisos correctos, 3) Firewall no bloquee nuestros servidores. Docs completos en docs.empresa.com" },
-      { k: ["lento", "429", "error"], r: "Error 429 = límite de requests alcanzado. Espera 60 segundos o considera upgrade para mayor capacidad. Si persiste, limpia caché y prueba en incógnito." },
-      { k: ["hablar", "soporte", "humano", "persona"], r: "Nuestro soporte humano está disponible Lun-Vie 9am-7pm CDMX. Puedes contactarnos en soporte@empresa.com o (55) 1234-5678. Tiempo de respuesta: Básico 48h, Pro 24h, Enterprise 4h. ¿Quieres que escale tu caso?" },
+      { k: ["login", "contraseña", "acceso", "entrar", "puedo", "password", "access", "sign in", "can't"], r: {
+        es: "Para restablecer: 1) Pantalla de login > '¿Olvidaste tu contraseña?', 2) Ingresa tu email, 3) Link de recuperación en máximo 5 minutos. Revisa spam si no llega.",
+        en: "To reset: 1) Login screen > 'Forgot password?', 2) Enter your email, 3) Recovery link arrives in max 5 minutes. Check spam if it doesn't arrive.",
+      }},
+      { k: ["integración", "conectar", "api", "falla", "integration", "connect", "fail"], r: {
+        es: "Verifica: 1) Token API vigente (Panel > API > Tokens), 2) Permisos correctos, 3) Firewall no bloquee nuestros servidores. Docs completos en docs.empresa.com",
+        en: "Check: 1) API token is valid (Panel > API > Tokens), 2) Correct permissions, 3) Firewall isn't blocking our servers. Full docs at docs.empresa.com",
+      }},
+      { k: ["lento", "429", "error", "slow"], r: {
+        es: "Error 429 = límite de requests alcanzado. Espera 60 segundos o considera upgrade para mayor capacidad. Si persiste, limpia caché y prueba en incógnito.",
+        en: "Error 429 = request limit reached. Wait 60 seconds or consider upgrading for more capacity. If it persists, clear cache and try incognito mode.",
+      }},
+      { k: ["hablar", "soporte", "humano", "persona", "talk", "support", "human", "person"], r: {
+        es: "Nuestro soporte humano está disponible Lun-Vie 9am-7pm CDMX. Puedes contactarnos en soporte@empresa.com o (55) 1234-5678. Tiempo de respuesta: Básico 48h, Pro 24h, Enterprise 4h. ¿Quieres que escale tu caso?",
+        en: "Our human support is available Mon-Fri 9am-7pm CDMX. Contact us at soporte@empresa.com or (55) 1234-5678. Response time: Basic 48h, Pro 24h, Enterprise 4h. Want me to escalate?",
+      }},
     ],
   },
   aria: {
-    default: "Puedo ayudarte con facturación. Aceptamos tarjetas, SPEI y OXXO Pay. Facturas CFDI automáticas el día 1. ¿Cuál es tu consulta?",
+    default: {
+      es: "Puedo ayudarte con facturación. Aceptamos tarjetas, SPEI y OXXO Pay. Facturas CFDI automáticas el día 1. ¿Cuál es tu consulta?",
+      en: "I can help you with billing. We accept cards, SPEI and OXXO Pay. CFDI invoices generated automatically on the 1st. What's your question?",
+    },
     patterns: [
-      { k: ["cancelar", "baja"], r: "Para cancelar: Configuración > Suscripción > Cancelar. Efectiva al final del ciclo actual. Tus datos se conservan 90 días. ¿Algo más?" },
-      { k: ["reembolso", "devolución", "devolver"], r: "Reembolso completo dentro de los primeros 30 días. Escribe a facturacion@empresa.com con tu número de cuenta. Procesamos en 5-7 días hábiles." },
-      { k: ["factura", "cfdi", "comprobante"], r: "Facturas CFDI se generan el día 1 y se envían al email registrado. Para refacturación, escribe a facturacion@empresa.com con RFC y razón social." },
-      { k: ["oxxo", "spei", "transferencia", "pago", "metodo"], r: "Aceptamos: tarjetas (Visa, MC, Amex), SPEI, OXXO Pay y transferencia bancaria. OXXO genera una referencia de pago con vigencia de 24h. SPEI se acredita en minutos. ¿Necesitas cambiar tu método de pago?" },
-      { k: ["cambiar", "upgrade", "downgrade", "plan"], r: "Upgrade: se aplica inmediatamente con prorrateo. Downgrade: al inicio del siguiente ciclo. Ambos desde Configuración > Suscripción. Enterprise requiere contactar a tu account manager." },
+      { k: ["cancelar", "baja", "cancel", "unsubscribe"], r: {
+        es: "Para cancelar: Configuración > Suscripción > Cancelar. Efectiva al final del ciclo actual. Tus datos se conservan 90 días. ¿Algo más?",
+        en: "To cancel: Settings > Subscription > Cancel. Effective at end of current cycle. Your data is retained for 90 days. Anything else?",
+      }},
+      { k: ["reembolso", "devolución", "devolver", "refund", "money back", "return"], r: {
+        es: "Reembolso completo dentro de los primeros 30 días. Escribe a facturacion@empresa.com con tu número de cuenta. Procesamos en 5-7 días hábiles.",
+        en: "Full refund within the first 30 days. Email facturacion@empresa.com with your account number. Processed in 5-7 business days.",
+      }},
+      { k: ["factura", "cfdi", "comprobante", "invoice", "receipt"], r: {
+        es: "Facturas CFDI se generan el día 1 y se envían al email registrado. Para refacturación, escribe a facturacion@empresa.com con RFC y razón social.",
+        en: "CFDI invoices are generated on the 1st and sent to your registered email. For re-invoicing, email facturacion@empresa.com with RFC and business name.",
+      }},
+      { k: ["oxxo", "spei", "transferencia", "pago", "metodo", "transfer", "payment", "method"], r: {
+        es: "Aceptamos: tarjetas (Visa, MC, Amex), SPEI, OXXO Pay y transferencia bancaria. OXXO genera una referencia de pago con vigencia de 24h. SPEI se acredita en minutos. ¿Necesitas cambiar tu método de pago?",
+        en: "We accept: cards (Visa, MC, Amex), SPEI, OXXO Pay and bank transfer. OXXO generates a payment reference valid for 24h. SPEI processes in minutes. Need to change your payment method?",
+      }},
+      { k: ["cambiar", "upgrade", "downgrade", "plan", "change"], r: {
+        es: "Upgrade: se aplica inmediatamente con prorrateo. Downgrade: al inicio del siguiente ciclo. Ambos desde Configuración > Suscripción. Enterprise requiere contactar a tu account manager.",
+        en: "Upgrade: applied immediately with proration. Downgrade: at the start of the next cycle. Both from Settings > Subscription. Enterprise requires contacting your account manager.",
+      }},
     ],
   },
   nexus: {
-    default: "Lamento mucho tu experiencia. Entiendo la frustración y quiero resolverlo. Estoy escalando tu caso ahora:\n\n📧 soporte@empresa.com\n📞 (55) 1234-5678\n\nUn agente humano te contactará en máximo 30 minutos. Ref: #ESC-" + Math.floor(Math.random() * 9000 + 1000),
+    default: {
+      es: "Lamento mucho tu experiencia. Entiendo la frustración y quiero resolverlo. Estoy escalando tu caso ahora:\n\nsoporte@empresa.com\n(55) 1234-5678\n\nUn agente humano te contactará en máximo 30 minutos. Ref: #ESC-" + DEMO_ESC_REF,
+      en: "I'm sorry about your experience. I understand the frustration and want to resolve this. I'm escalating your case now:\n\nsoporte@empresa.com\n(55) 1234-5678\n\nA human agent will contact you within 30 minutes. Ref: #ESC-" + DEMO_ESC_REF,
+    },
     patterns: [],
   },
   orion: {
-    default: "Puedo ayudarte con información sobre planes, soporte técnico, facturación o datos de la empresa. ¿Sobre qué tema necesitas información?",
+    default: {
+      es: "Puedo ayudarte con información sobre planes, soporte técnico, facturación o datos de la empresa. ¿Sobre qué tema necesitas información?",
+      en: "I can help you with information about plans, tech support, billing or company details. What topic do you need help with?",
+    },
     patterns: [
-      { k: ["hola", "buenas", "hey", "que tal"], r: "¡Hola! Bienvenido a Synapse. Puedo ayudarte con planes y precios, soporte técnico, o facturación. ¿Sobre qué necesitas información?" },
-      { k: ["ubicad", "donde", "dónde", "oficina", "dirección", "direccion"], r: "Nuestra sede principal está en Ciudad de México. Operamos con un equipo de 45+ personas en 3 países (MX, CO, AR). Servidores en AWS México (principal) + AWS Virginia (respaldo). Contacto: hola@empresa.com | (55) 1234-5678" },
-      { k: ["contacto", "teléfono", "telefono", "email", "correo", "llamar"], r: "Contacto: hola@empresa.com | (55) 1234-5678. Horario de oficina: Lun-Vie 9:00-18:00 CDMX. Soporte técnico extiende hasta las 7pm. Enterprise tiene soporte 24/7." },
-      { k: ["horario", "hora", "atienden", "abierto"], r: "Horario de atención: Lun-Vie 9:00-18:00 CDMX. Soporte técnico: hasta las 7pm. Enterprise: 24/7 con línea directa. Los fines de semana solo atendemos emergencias Enterprise." },
-      { k: ["empresa", "quienes", "quiénes", "que hacen", "qué hacen"], r: "Somos Synapse, plataforma SaaS de chatbots IA fundada en 2024. +2,000 empresas clientes, 45+ personas en 3 países. Ofrecemos chatbots multiagente con IA para atención al cliente, ventas y soporte." },
-      { k: ["seguridad", "datos", "privacidad", "cifrado", "certificacion"], r: "Seguridad es prioridad: cifrado AES-256 + TLS 1.3, certificaciones SOC2 Type II e ISO 27001, GDPR compliant. Servidores en AWS México con respaldo en Virginia. 2FA en todos los planes." },
-      { k: ["integracion", "integración", "conectar", "herramienta"], r: "Contamos con 50+ integraciones nativas: Slack, Teams, WhatsApp, HubSpot, Salesforce, Shopify, Zapier, n8n, Make.com, Stripe, MercadoPago y muchas más. Disponibles desde el Plan Pro." },
-      { k: ["gracias", "excelente", "perfecto", "genial"], r: "¡Con mucho gusto! Si necesitas algo más, aquí estaré. Que tengas un excelente día." },
-      { k: ["adios", "adiós", "bye", "hasta luego", "chao"], r: "¡Hasta pronto! Fue un gusto atenderte. Si necesitas algo en el futuro, aquí estaremos. ¡Éxito!" },
-    ],
-  },
-};
-
-const DEMO_EN = {
-  nova: {
-    default: "We have 3 plans: Basic ($99/mo, 3 users), Pro ($199/mo, 10 users + priority support) and Enterprise (custom, unlimited users + 99.9% SLA). All include a 14-day free trial. Which one fits your needs?",
-    patterns: [
-      { k: ["price", "cost", "how much", "plan"], r: "Our plans: Basic $99/mo, Pro $199/mo, Enterprise custom. Annual billing gives you 20% off. 14 days free, no credit card. Which one interests you?" },
-      { k: ["trial", "free", "test"], r: "We offer a 14-day free trial, no credit card required. Full access to the Pro plan. Want me to help you get started?" },
-      { k: ["enterprise", "corporate"], r: "Enterprise includes: unlimited users, 99.9% SLA, dedicated onboarding, 4h support, SSO/SAML and account manager. Custom pricing. Shall I connect you with sales?" },
-      { k: ["discount", "annual"], r: "With annual billing: Basic $79/mo (save $240/yr) and Pro $159/mo (save $480/yr). Interested?" },
-      { k: ["competition", "zendesk", "intercom"], r: "We're 40% cheaper than Zendesk, with setup in 15 min. Unlike Intercom, our AI is included at no extra cost per resolution. Want a demo?" },
-    ],
-  },
-  atlas: {
-    default: "To help you better, could you describe the error? For access issues, go to login > 'Forgot password?'. Support available Mon-Fri 9am-7pm CDMX.",
-    patterns: [
-      { k: ["login", "password", "access", "sign in", "can't"], r: "To reset: 1) Login screen > 'Forgot password?', 2) Enter your email, 3) Recovery link arrives in max 5 minutes. Check spam if it doesn't arrive." },
-      { k: ["integration", "connect", "api", "fail"], r: "Check: 1) API token is valid (Panel > API > Tokens), 2) Correct permissions, 3) Firewall isn't blocking our servers. Full docs at docs.empresa.com" },
-      { k: ["slow", "429", "error"], r: "Error 429 = request limit reached. Wait 60 seconds or consider upgrading for more capacity. If it persists, clear cache and try incognito mode." },
-      { k: ["talk", "support", "human", "person"], r: "Our human support is available Mon-Fri 9am-7pm CDMX. Contact us at soporte@empresa.com or (55) 1234-5678. Response time: Basic 48h, Pro 24h, Enterprise 4h. Want me to escalate?" },
-    ],
-  },
-  aria: {
-    default: "I can help you with billing. We accept cards, SPEI and OXXO Pay. CFDI invoices generated automatically on the 1st. What's your question?",
-    patterns: [
-      { k: ["cancel", "unsubscribe"], r: "To cancel: Settings > Subscription > Cancel. Effective at end of current cycle. Your data is retained for 90 days. Anything else?" },
-      { k: ["refund", "money back", "return"], r: "Full refund within the first 30 days. Email facturacion@empresa.com with your account number. Processed in 5-7 business days." },
-      { k: ["invoice", "receipt", "cfdi"], r: "CFDI invoices are generated on the 1st and sent to your registered email. For re-invoicing, email facturacion@empresa.com with RFC and business name." },
-      { k: ["oxxo", "spei", "transfer", "payment", "method"], r: "We accept: cards (Visa, MC, Amex), SPEI, OXXO Pay and bank transfer. OXXO generates a payment reference valid for 24h. SPEI processes in minutes. Need to change your payment method?" },
-      { k: ["change", "upgrade", "downgrade", "plan"], r: "Upgrade: applied immediately with proration. Downgrade: at the start of the next cycle. Both from Settings > Subscription. Enterprise requires contacting your account manager." },
-    ],
-  },
-  nexus: {
-    default: "I'm sorry about your experience. I understand the frustration and want to resolve this. I'm escalating your case now:\n\nsoporte@empresa.com\n(55) 1234-5678\n\nA human agent will contact you within 30 minutes. Ref: #ESC-" + Math.floor(Math.random() * 9000 + 1000),
-    patterns: [],
-  },
-  orion: {
-    default: "I can help you with information about plans, tech support, billing or company details. What topic do you need help with?",
-    patterns: [
-      { k: ["hello", "hi", "hey", "what's up"], r: "Hello! Welcome to Synapse. I can help you with plans and pricing, technical support, or billing. What do you need?" },
-      { k: ["location", "where", "office", "address"], r: "Our headquarters is in Mexico City. We operate with a team of 45+ people in 3 countries (MX, CO, AR). Servers on AWS Mexico (primary) + AWS Virginia (backup). Contact: hola@empresa.com | (55) 1234-5678" },
-      { k: ["contact", "phone", "email", "call"], r: "Contact: hola@empresa.com | (55) 1234-5678. Office hours: Mon-Fri 9:00-18:00 CDMX. Tech support extends to 7pm. Enterprise has 24/7 support." },
-      { k: ["hours", "schedule", "open", "available"], r: "Business hours: Mon-Fri 9:00-18:00 CDMX. Tech support: until 7pm. Enterprise: 24/7 with direct line. Weekends only for Enterprise emergencies." },
-      { k: ["company", "who", "what do"], r: "We are Synapse, an AI chatbot SaaS platform founded in 2024. 2,000+ business clients, 45+ people in 3 countries. We offer multi-agent AI chatbots for customer service, sales and support." },
-      { k: ["security", "data", "privacy", "encryption", "certification"], r: "Security is a priority: AES-256 + TLS 1.3 encryption, SOC2 Type II and ISO 27001 certifications, GDPR compliant. AWS servers in Mexico with Virginia backup. 2FA on all plans." },
-      { k: ["integration", "connect", "tool"], r: "We have 50+ native integrations: Slack, Teams, WhatsApp, HubSpot, Salesforce, Shopify, Zapier, n8n, Make.com, Stripe, MercadoPago and more. Available from the Pro plan." },
-      { k: ["thanks", "great", "perfect", "awesome"], r: "My pleasure! If you need anything else, I'm here. Have a great day!" },
-      { k: ["bye", "goodbye", "see you", "later"], r: "Goodbye! It was great helping you. If you need anything in the future, we'll be here. Take care!" },
+      { k: ["hola", "buenas", "hey", "que tal", "hello", "hi", "what's up"], r: {
+        es: "¡Hola! Bienvenido a Synapse. Puedo ayudarte con planes y precios, soporte técnico, o facturación. ¿Sobre qué necesitas información?",
+        en: "Hello! Welcome to Synapse. I can help you with plans and pricing, technical support, or billing. What do you need?",
+      }},
+      { k: ["ubicad", "donde", "dónde", "oficina", "dirección", "direccion", "location", "where", "office", "address"], r: {
+        es: "Nuestra sede principal está en Ciudad de México. Operamos con un equipo de 45+ personas en 3 países (MX, CO, AR). Servidores en AWS México (principal) + AWS Virginia (respaldo). Contacto: hola@empresa.com | (55) 1234-5678",
+        en: "Our headquarters is in Mexico City. We operate with a team of 45+ people in 3 countries (MX, CO, AR). Servers on AWS Mexico (primary) + AWS Virginia (backup). Contact: hola@empresa.com | (55) 1234-5678",
+      }},
+      { k: ["contacto", "teléfono", "telefono", "email", "correo", "llamar", "contact", "phone", "call"], r: {
+        es: "Contacto: hola@empresa.com | (55) 1234-5678. Horario de oficina: Lun-Vie 9:00-18:00 CDMX. Soporte técnico extiende hasta las 7pm. Enterprise tiene soporte 24/7.",
+        en: "Contact: hola@empresa.com | (55) 1234-5678. Office hours: Mon-Fri 9:00-18:00 CDMX. Tech support extends to 7pm. Enterprise has 24/7 support.",
+      }},
+      { k: ["horario", "hora", "atienden", "abierto", "hours", "schedule", "open", "available"], r: {
+        es: "Horario de atención: Lun-Vie 9:00-18:00 CDMX. Soporte técnico: hasta las 7pm. Enterprise: 24/7 con línea directa. Los fines de semana solo atendemos emergencias Enterprise.",
+        en: "Business hours: Mon-Fri 9:00-18:00 CDMX. Tech support: until 7pm. Enterprise: 24/7 with direct line. Weekends only for Enterprise emergencies.",
+      }},
+      { k: ["empresa", "quienes", "quiénes", "que hacen", "qué hacen", "company", "who", "what do"], r: {
+        es: "Somos Synapse, plataforma SaaS de chatbots IA fundada en 2024. +2,000 empresas clientes, 45+ personas en 3 países. Ofrecemos chatbots multiagente con IA para atención al cliente, ventas y soporte.",
+        en: "We are Synapse, an AI chatbot SaaS platform founded in 2024. 2,000+ business clients, 45+ people in 3 countries. We offer multi-agent AI chatbots for customer service, sales and support.",
+      }},
+      { k: ["seguridad", "datos", "privacidad", "cifrado", "certificacion", "security", "data", "privacy", "encryption", "certification"], r: {
+        es: "Seguridad es prioridad: cifrado AES-256 + TLS 1.3, certificaciones SOC2 Type II e ISO 27001, GDPR compliant. Servidores en AWS México con respaldo en Virginia. 2FA en todos los planes.",
+        en: "Security is a priority: AES-256 + TLS 1.3 encryption, SOC2 Type II and ISO 27001 certifications, GDPR compliant. AWS servers in Mexico with Virginia backup. 2FA on all plans.",
+      }},
+      { k: ["integracion", "integración", "conectar", "herramienta", "integration", "connect", "tool"], r: {
+        es: "Contamos con 50+ integraciones nativas: Slack, Teams, WhatsApp, HubSpot, Salesforce, Shopify, Zapier, n8n, Make.com, Stripe, MercadoPago y muchas más. Disponibles desde el Plan Pro.",
+        en: "We have 50+ native integrations: Slack, Teams, WhatsApp, HubSpot, Salesforce, Shopify, Zapier, n8n, Make.com, Stripe, MercadoPago and more. Available from the Pro plan.",
+      }},
+      { k: ["gracias", "excelente", "perfecto", "genial", "thanks", "great", "perfect", "awesome"], r: {
+        es: "¡Con mucho gusto! Si necesitas algo más, aquí estaré. Que tengas un excelente día.",
+        en: "My pleasure! If you need anything else, I'm here. Have a great day!",
+      }},
+      { k: ["adios", "adiós", "bye", "hasta luego", "chao", "goodbye", "see you", "later"], r: {
+        es: "¡Hasta pronto! Fue un gusto atenderte. Si necesitas algo en el futuro, aquí estaremos. ¡Éxito!",
+        en: "Goodbye! It was great helping you. If you need anything in the future, we'll be here. Take care!",
+      }},
     ],
   },
 };
 
 function getDemoResponse(agentId, text, lang) {
-  const demoSet = lang === "en" ? DEMO_EN : DEMO;
-  const a = demoSet[agentId]; if (!a) return lang === "en" ? "How can I help you?" : "¿En qué puedo ayudarte?";
+  const a = DEMO[agentId]; if (!a) return lang === "en" ? "How can I help you?" : "¿En qué puedo ayudarte?";
   const norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  for (const p of a.patterns) { if (p.k.some(k => norm.includes(k))) return p.r; }
-  return a.default;
+  for (const p of a.patterns) {
+    if (p.k.some(k => norm.includes(k))) {
+      return (typeof p.r === "object") ? (p.r[lang] || p.r.es) : p.r;
+    }
+  }
+  return (typeof a.default === "object") ? (a.default[lang] || a.default.es) : a.default;
 }
 
 // ─── SUGGESTIONS ────────────────────────────────────────────────────────────
@@ -652,7 +707,7 @@ export default function SynapseAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 800,
-          system: getSystemPrompt(target),
+          system: getSystemPrompt(target, detected || lang),
           messages: messages.filter(m => m.role === "user" || m.role === "assistant").slice(-10).concat([{ role: "user", content }]).map(m => ({ role: m.role, content: m.content })),
         }),
       });
