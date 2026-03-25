@@ -1,5 +1,16 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
+// ─── ELEVENLABS VOICE WIDGET ────────────────────────────────────────────────
+function useElevenLabsWidget() {
+  useEffect(() => {
+    if (document.querySelector('script[src*="elevenlabs"]')) return;
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/@elevenlabs/convai-widget-embed";
+    script.async = true;
+    document.body.appendChild(script);
+  }, []);
+}
+
 // ─── SVG ICONS ──────────────────────────────────────────────────────────────
 const Icons = {
   chart: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>,
@@ -393,11 +404,169 @@ function detectLang(text) {
   return null;
 }
 
+// ─── TOUR ────────────────────────────────────────────────────────────────────
+const TOUR_TEXTS = {
+  0: {
+    title: { en: "Synapse — Multi-Agent AI Chatbot", es: "Synapse — Chatbot IA Multiagente" },
+    text: {
+      en: "This customer service system uses 5 specialized AI agents that automatically route your messages to the right specialist. Nova handles sales, Atlas handles support, Aria handles billing, Nexus handles escalation, and Orion handles general queries. No manual routing — the AI decides. Let me show you how it works!",
+      es: "Este sistema de atención al cliente usa 5 agentes IA especializados que rutean tus mensajes automáticamente al especialista correcto. Nova maneja ventas, Atlas soporte, Aria facturación, Nexus escalamiento, y Orion consultas generales. Sin ruteo manual — la IA decide. ¡Déjame mostrarte cómo funciona!",
+    },
+  },
+  1: {
+    en: "These are the 5 AI agents. Each specializes in a different area: Nova (Sales), Atlas (Support), Aria (Billing), Nexus (Escalation), Orion (General). The system automatically routes messages to the right agent.",
+    es: "Estos son los 5 agentes IA. Cada uno se especializa en un área: Nova (Ventas), Atlas (Soporte), Aria (Facturación), Nexus (Escalamiento), Orion (General). El sistema rutea mensajes automáticamente al agente correcto.",
+  },
+  2: {
+    en: "This is where you type your messages. The AI analyzes your intent and routes it to the best agent automatically.",
+    es: "Aquí es donde escribes tus mensajes. La IA analiza tu intención y lo rutea al mejor agente automáticamente.",
+  },
+  3: {
+    en: "The agent responded with info from the knowledge base. Notice how the system detected the intent and routed to the right specialist automatically!",
+    es: "El agente respondió con información de la base de conocimiento. ¡Observa cómo el sistema detectó la intención y ruteó al especialista correcto automáticamente!",
+  },
+  4: {
+    en: "The analytics panel tracks message distribution, satisfaction ratings, and agent usage in real-time.",
+    es: "El panel de analíticas rastrea distribución de mensajes, calificaciones de satisfacción, y uso de agentes en tiempo real.",
+  },
+  5: {
+    en: "You can also interact by voice using the ElevenLabs widget in the bottom-left corner. Tour complete! You've seen all 5 agents, intent routing, and analytics.",
+    es: "También puedes interactuar por voz usando el widget de ElevenLabs en la esquina inferior izquierda. ¡Tour completo! Has visto los 5 agentes, ruteo de intención, y analíticas.",
+  },
+};
+
+function renderBoldText(text) {
+  const parts = text.split(/\*\*(.*?)\*\*/g);
+  return parts.map((part, i) => i % 2 === 1 ? <strong key={i} style={{ color: "#fff" }}>{part}</strong> : part);
+}
+
+function TourOverlay({ step, lang, onSkip, onNext, onTryChat, onTryStats, onFinish, setLang }) {
+  const [spotlightRect, setSpotlightRect] = useState(null);
+
+  const recalcSpotlight = useCallback(() => {
+    if (step === 0) { setSpotlightRect(null); return; }
+    const selectors = { 1: '[data-tour="agents"]', 2: '[data-tour="input"]', 3: '[data-tour="messages"]', 4: '[data-tour="stats-btn"]', 5: '[data-tour="voice"]' };
+    const sel = selectors[step];
+    if (!sel) { setSpotlightRect(null); return; }
+    const el = document.querySelector(sel);
+    if (el) {
+      const r = el.getBoundingClientRect();
+      setSpotlightRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else { setSpotlightRect(null); }
+  }, [step]);
+
+  useEffect(() => { recalcSpotlight(); }, [recalcSpotlight]);
+
+  useEffect(() => {
+    window.addEventListener("resize", recalcSpotlight);
+    return () => window.removeEventListener("resize", recalcSpotlight);
+  }, [recalcSpotlight]);
+
+  if (step === null || step === undefined) return null;
+
+  const btnPrimary = { background: "linear-gradient(135deg, #6EE7C7, #3B82F6)", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 600, color: "#fff", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" };
+  const btnGhost = { background: "transparent", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 10, padding: "10px 24px", fontSize: 14, fontWeight: 500, color: "rgba(255,255,255,0.6)", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" };
+  const skipLink = { background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer", textDecoration: "underline", fontFamily: "'DM Sans', sans-serif", padding: 0 };
+
+  // Step 0 — welcome modal with language selector
+  if (step === 0) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.75)", animation: "fadeIn 0.3s ease" }}>
+        <div style={{ background: "#141B2D", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: "36px 32px", maxWidth: 420, width: "90%", textAlign: "center", animation: "welcomePulse 0.4s ease" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg, #6EE7C7, #3B82F6)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 22, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>S</div>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: 20, fontWeight: 700, color: "#F9FAFB", margin: "0 0 12px", letterSpacing: "-0.02em" }}>{TOUR_TEXTS[0].title[lang]}</h2>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, marginBottom: 4 }}>
+            <button onClick={() => setLang('es')} style={{
+              padding: '6px 16px', borderRadius: 6,
+              border: lang === 'es' ? '2px solid #6EE7C7' : '1px solid #475569',
+              background: lang === 'es' ? 'rgba(99,102,241,0.1)' : 'transparent',
+              color: lang === 'es' ? '#a5b4fc' : '#64748b',
+              cursor: 'pointer', fontSize: '.85rem', fontWeight: lang === 'es' ? 700 : 400,
+            }}>Espa\u00f1ol</button>
+            <button onClick={() => setLang('en')} style={{
+              padding: '6px 16px', borderRadius: 6,
+              border: lang === 'en' ? '2px solid #6EE7C7' : '1px solid #475569',
+              background: lang === 'en' ? 'rgba(99,102,241,0.1)' : 'transparent',
+              color: lang === 'en' ? '#a5b4fc' : '#64748b',
+              cursor: 'pointer', fontSize: '.85rem', fontWeight: lang === 'en' ? 700 : 400,
+            }}>English</button>
+          </div>
+          <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(255,255,255,0.6)", margin: "12px 0 24px" }}>{TOUR_TEXTS[0].text[lang]}</p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <button onClick={onSkip} style={btnGhost}>{lang === "en" ? "Skip" : "Saltar"}</button>
+            <button onClick={() => onNext(1)} style={btnPrimary}>{lang === "en" ? "Start Tour \u2192" : "Iniciar Tour \u2192"}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Steps 1-5 — spotlight + tooltip with Next/Try buttons
+  const tooltipBelow = step === 1 || step === 4;
+  const tooltipStyle = spotlightRect ? {
+    position: "fixed",
+    zIndex: 10003,
+    left: Math.max(12, Math.min(spotlightRect.left, window.innerWidth - 320)),
+    top: tooltipBelow ? spotlightRect.top + spotlightRect.height + 16 : spotlightRect.top - 16,
+    transform: tooltipBelow ? "none" : "translateY(-100%)",
+    width: 300,
+    background: "#1A2236",
+    border: "1px solid rgba(110,231,199,0.25)",
+    borderRadius: 14,
+    padding: "16px 18px",
+    animation: "slideDown 0.3s ease",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+  } : { position: "fixed", zIndex: 10003, top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 300, background: "#1A2236", border: "1px solid rgba(110,231,199,0.25)", borderRadius: 14, padding: "16px 18px" };
+
+  const text = TOUR_TEXTS[step]?.[lang] || "";
+
+  // Determine button label and action per step
+  let btnLabel, btnAction;
+  if (step === 1) { btnLabel = lang === "en" ? "Next \u2192" : "Siguiente \u2192"; btnAction = () => onNext(2); }
+  else if (step === 2) { btnLabel = lang === "en" ? "Try it \u2192" : "Probar \u2192"; btnAction = () => onTryChat(); }
+  else if (step === 3) { btnLabel = lang === "en" ? "Next \u2192" : "Siguiente \u2192"; btnAction = () => onNext(4); }
+  else if (step === 4) { btnLabel = lang === "en" ? "Try it \u2192" : "Probar \u2192"; btnAction = () => onTryStats(); }
+  else if (step === 5) { btnLabel = lang === "en" ? "Finish Tour \u2713" : "Terminar Tour \u2713"; btnAction = () => onFinish(); }
+
+  return (
+    <>
+      {/* Backdrop with spotlight cutout via clip-path */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,0.6)", pointerEvents: "none", transition: "all 0.3s ease",
+        clipPath: spotlightRect ? `polygon(0% 0%, 0% 100%, ${spotlightRect.left - 8}px 100%, ${spotlightRect.left - 8}px ${spotlightRect.top - 8}px, ${spotlightRect.left + spotlightRect.width + 8}px ${spotlightRect.top - 8}px, ${spotlightRect.left + spotlightRect.width + 8}px ${spotlightRect.top + spotlightRect.height + 8}px, ${spotlightRect.left - 8}px ${spotlightRect.top + spotlightRect.height + 8}px, ${spotlightRect.left - 8}px 100%, 100% 100%, 100% 0%)` : undefined,
+      }} />
+      {/* Pulsing ring around spotlight */}
+      {spotlightRect && (
+        <div style={{ position: "fixed", zIndex: 10001, top: spotlightRect.top - 8, left: spotlightRect.left - 8, width: spotlightRect.width + 16, height: spotlightRect.height + 16, borderRadius: 12, border: "2px solid rgba(110,231,199,0.5)", animation: "tourPulse 1.5s ease-in-out infinite", pointerEvents: "none" }} />
+      )}
+      {/* Clickthrough zone over spotlighted element */}
+      {spotlightRect && (
+        <div style={{ position: "fixed", zIndex: 10002, top: spotlightRect.top, left: spotlightRect.left, width: spotlightRect.width, height: spotlightRect.height, pointerEvents: "none" }} />
+      )}
+      {/* Tooltip */}
+      <div style={tooltipStyle}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, color: "rgba(110,231,199,0.7)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            {lang === "en" ? `Step ${step} of 6` : `Paso ${step} de 6`}
+          </span>
+          <button onClick={onSkip} style={skipLink}>{lang === "en" ? "Skip Tour" : "Saltar Tour"}</button>
+        </div>
+        <p style={{ fontSize: 13, lineHeight: 1.65, color: "rgba(255,255,255,0.7)", margin: "0 0 14px" }}>{renderBoldText(text)}</p>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={btnAction} style={btnPrimary}>{btnLabel}</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── MAIN ───────────────────────────────────────────────────────────────────
 let msgId = 0;
 const ts = () => new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 
 export default function SynapseAssistant() {
+  useElevenLabsWidget();
+
   const [messages, setMessages] = useState(() => {
     try { const s = localStorage.getItem("synapse_msgs"); if (s) return JSON.parse(s); } catch {}
     return [{ id: ++msgId, role: "assistant", agent: "orion", content: "¡Hola! Soy el asistente de Synapse. Tengo agentes especializados que te ayudarán al instante. Describe tu consulta y te conectaré con el más indicado.", timestamp: ts() }];
@@ -411,6 +580,10 @@ export default function SynapseAssistant() {
   const [ratings, setRatings] = useState(() => { try { const s = localStorage.getItem("synapse_ratings"); if (s) return JSON.parse(s); } catch {} return {}; });
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ─── TOUR STATE ───
+  const [tourStep, setTourStep] = useState(0);
+  const tourActive = tourStep !== null;
 
   useEffect(() => { localStorage.setItem("synapse_msgs", JSON.stringify(messages)); }, [messages]);
   useEffect(() => { localStorage.setItem("synapse_ratings", JSON.stringify(ratings)); }, [ratings]);
@@ -452,6 +625,7 @@ export default function SynapseAssistant() {
   const sendMessage = async (text) => {
     const content = (text || input).trim();
     if (!content || loading) return;
+
     setInput("");
 
     // Auto-detect language from user input
@@ -508,9 +682,15 @@ export default function SynapseAssistant() {
         @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes transferFlash { 0%{opacity:0;transform:scaleX(0.8)} 50%{opacity:1} 100%{transform:scaleX(1)} }
         @keyframes welcomePulse { 0%{transform:scale(0.85);opacity:0} 60%{transform:scale(1.05)} 100%{transform:scale(1);opacity:1} }
+        @keyframes tourPulse { 0%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.03)} 100%{opacity:1;transform:scale(1)} }
         *{box-sizing:border-box} textarea:focus{outline:none} textarea{resize:none}
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:2px}
       `}</style>
+
+      {/* ElevenLabs Voice Agent */}
+      <div data-tour="voice" style={{ position: "fixed", bottom: 24, left: 24, zIndex: 9999 }}
+        dangerouslySetInnerHTML={{ __html: '<elevenlabs-convai agent-id="agent_5601kmfx9vnzeb691cj64x2khmm0"></elevenlabs-convai>' }}
+      />
 
       {/* Subtle background glow */}
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: 600, height: 600, background: `radial-gradient(circle, ${ca.shadow?.replace("0.3", "0.04")} 0%, transparent 70%)`, pointerEvents: "none", transition: "background 1s ease" }} />
@@ -538,10 +718,31 @@ export default function SynapseAssistant() {
               <button onClick={() => setLang("en")} style={{ background: lang === "en" ? `${ca.color}20` : "rgba(255,255,255,0.04)", border: "none", padding: "5px 8px", fontSize: 10, fontWeight: 600, color: lang === "en" ? ca.color : "#6B7280", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s", letterSpacing: "0.02em" }}>EN</button>
             </div>
             <button onClick={() => { setShowInfo(v => !v); setShowStats(false); }} title="Info" style={{ background: showInfo ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showInfo ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showInfo ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.info}</button>
-            <button onClick={() => { setShowStats(v => !v); setShowInfo(false); }} title="Analytics" style={{ background: showStats ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showStats ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showStats ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.chart}</button>
+            <button data-tour="stats-btn" onClick={() => { setShowStats(v => !v); setShowInfo(false); }} title="Analytics" style={{ background: showStats ? `${ca.color}15` : "rgba(255,255,255,0.04)", border: `1px solid ${showStats ? `${ca.color}25` : "rgba(255,255,255,0.08)"}`, borderRadius: 8, padding: "6px 8px", color: showStats ? ca.color : "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.2s" }}>{Icons.chart}</button>
             <button onClick={exportChat} title={lang === "en" ? "Export" : "Exportar"} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.download}</button>
             <button onClick={clearChat} title={lang === "en" ? "Clear" : "Limpiar"} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center" }}>{Icons.trash}</button>
+            <button onClick={() => { setTourStep(0); }} title={lang === "en" ? "Tour" : "Tour"} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: "6px 8px", color: "#6B7280", cursor: "pointer", display: "flex", alignItems: "center", fontSize: 12, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", width: 30, height: 30, justifyContent: "center" }}>?</button>
           </div>
+        </div>
+
+        {/* AGENT BAR */}
+        <div data-tour="agents" style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.015)", scrollbarWidth: "none" }}>
+          {Object.entries(AGENTS).map(([id, ag]) => (
+            <button key={id} onClick={() => { setAgent(id); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 10,
+                background: agent === id ? `${ag.color}15` : "rgba(255,255,255,0.03)",
+                border: `1px solid ${agent === id ? `${ag.color}30` : "rgba(255,255,255,0.07)"}`,
+                cursor: "pointer", flexShrink: 0, transition: "all 0.2s",
+              }}
+            >
+              <AgentAvatar agentId={id} size={22} />
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: agent === id ? ag.color : "#9CA3AF", fontFamily: "'DM Sans', sans-serif" }}>{ag.name}</div>
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)" }}>{agentRole(id, lang)}</div>
+              </div>
+            </button>
+          ))}
         </div>
 
         {/* INFO PANEL */}
@@ -561,7 +762,7 @@ export default function SynapseAssistant() {
         {showStats && <StatsPanel messages={messages} ratings={ratings} lang={lang} />}
 
         {/* MESSAGES */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 20px 8px" }}>
+        <div data-tour="messages" style={{ flex: 1, overflowY: "auto", padding: "20px 20px 8px" }}>
           {messages.map(msg =>
             msg.role === "transfer" ? <TransferIndicator key={msg.id} to={msg.to} lang={lang} /> : <Message key={msg.id} msg={msg} onRate={handleRate} isFirstFromAgent={firstFromAgent[msg.id]} lang={lang} />
           )}
@@ -589,7 +790,7 @@ export default function SynapseAssistant() {
         </div>
 
         {/* INPUT */}
-        <div style={{ padding: "10px 16px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
+        <div data-tour="input" style={{ padding: "10px 16px 14px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
           <div style={{ display: "flex", gap: 10, alignItems: "flex-end", background: "rgba(255,255,255,0.04)", border: `1px solid rgba(255,255,255,0.08)`, borderRadius: 16, padding: "10px 14px", transition: "all 0.3s", boxShadow: `0 0 0 1px ${ca.color}08` }}
             onFocus={e => { e.currentTarget.style.borderColor = `${ca.color}35`; e.currentTarget.style.boxShadow = `0 0 0 1px ${ca.color}15`; }}
             onBlur={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)"; e.currentTarget.style.boxShadow = `0 0 0 1px ${ca.color}08`; }}
@@ -608,6 +809,31 @@ export default function SynapseAssistant() {
           </div>
         </div>
       </div>
+
+      {/* TOUR OVERLAY */}
+      {tourActive && (
+        <TourOverlay
+          step={tourStep}
+          lang={lang}
+          setLang={setLang}
+          onSkip={() => { setTourStep(null); }}
+          onNext={(next) => { setTourStep(next); }}
+          onTryChat={() => {
+            setInput("\u00bfCu\u00e1nto cuesta el plan Pro?");
+            setTourStep(null);
+            setTimeout(() => {
+              sendMessage("\u00bfCu\u00e1nto cuesta el plan Pro?");
+              setTimeout(() => setTourStep(3), 1800);
+            }, 300);
+          }}
+          onTryStats={() => {
+            setShowStats(true);
+            setShowInfo(false);
+            setTourStep(5);
+          }}
+          onFinish={() => { setTourStep(null); }}
+        />
+      )}
     </div>
   );
 }
