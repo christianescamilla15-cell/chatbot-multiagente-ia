@@ -5,8 +5,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+import os
 from app.agents.orchestrator import process_message
-from app.db.client import fetch_one, fetch_all
+from app.db.client import fetch_one, fetch_all, get_pool
 
 router = APIRouter(prefix="/api/residents", tags=["residents"])
 
@@ -44,6 +45,21 @@ async def lookup_resident(phone: str):
     if not resident:
         return {"found": False}
     return {"found": True, "resident": dict(resident)}
+
+
+@router.get("/db-check")
+async def db_check():
+    """Debug endpoint to verify DB connection."""
+    db_url = os.environ.get("DATABASE_URL", "NOT SET")
+    pool = await get_pool()
+    if not pool:
+        return {"db": "no pool", "url_prefix": db_url[:30] + "..." if len(db_url) > 30 else db_url}
+    try:
+        async with pool.acquire() as conn:
+            count = await conn.fetchval("SELECT COUNT(*) FROM residents")
+            return {"db": "connected", "residents": count, "url_prefix": db_url[:50] + "..."}
+    except Exception as e:
+        return {"db": "error", "error": str(e)}
 
 
 @router.get("/stats")
