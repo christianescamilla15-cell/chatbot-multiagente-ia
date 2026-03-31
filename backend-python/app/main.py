@@ -1,7 +1,8 @@
-"""FastAPI application entry point for the Synapse Chatbot API."""
+"""FastAPI application entry point for the Resident Support Multi-Agent System."""
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -23,19 +24,42 @@ from app.services.chat_service import ChatService
 from app.services.rate_limiter import RateLimiter
 from app.services.session_service import SessionService
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Initialise Redis on startup; close on shutdown."""
+    """Initialise DB, Redis, and agents on startup."""
     # Startup
     app.state.start_time = time.time()
 
-    redis_client = aioredis.from_url(
-        settings.REDIS_URL, encoding="utf-8", decode_responses=True
-    )
-    app.state.redis = redis_client
+    # ── PostgreSQL ──
+    app.state.db_pool = None
+    app.state.migrations_applied = 0
+    if settings.DATABASE_URL:
+        try:
+            from app.db.client import get_pool
+            from app.db.migrator import run_migrations
+            pool = await get_pool()
+            if pool:
+                app.state.db_pool = pool
+                app.state.migrations_applied = await run_migrations(pool)
+                logger.info("Database connected, %d migrations applied", app.state.migrations_applied)
+        except Exception as e:
+            logger.error("Database init failed (degraded mode): %s", e)
 
-    session_service = SessionService(redis_client)
+    # ── Redis ──
+    try:
+        redis_client = aioredis.from_url(
+            settings.REDIS_URL, encoding="utf-8", decode_responses=True
+        )
+        await redis_client.ping()
+        app.state.redis = redis_client
+    except Exception as e:
+        logger.warning("Redis unavailable (in-memory mode): %s", e)
+        app.state.redis = None
+
+    session_service = SessionService(app.state.redis)
     app.state.session_service = session_service
 
     agents = {
@@ -56,16 +80,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown
-    await redis_client.aclose()
+    if app.state.db_pool:
+        from app.db.client import close_pool
+        await close_pool()
+    if app.state.redis:
+        await app.state.redis.aclose()
 
 
 app = FastAPI(
-    title="Synapse Chatbot API",
+    title="MultiAgente — Resident Support System",
     description=(
-        "Backend multi-agente para chatbot de atención al cliente. "
-        "Clasifica intenciones y enruta a 5 agentes especializados."
+        "Sistema multi-agente de soporte para residentes. "
+        "8 agentes especializados con verificación OTP por WhatsApp."
     ),
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
 )
 
@@ -81,3 +109,7 @@ app.add_middleware(
 # Routers
 app.include_router(chat_router)
 app.include_router(system_router)
+
+# Resident Support System routes
+from app.routes.residents import router as residents_router
+app.include_router(residents_router)

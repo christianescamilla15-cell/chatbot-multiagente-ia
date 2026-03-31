@@ -7,7 +7,12 @@ class Settings(BaseSettings):
     """Central configuration sourced from env / .env file."""
 
     ANTHROPIC_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    DATABASE_URL: str = ""
     REDIS_URL: str = "redis://redis:6379"
+    TWILIO_SID: str = ""
+    TWILIO_TOKEN: str = ""
+    TWILIO_WHATSAPP_FROM: str = "whatsapp:+14155238886"
     ALLOWED_ORIGINS: str = "http://localhost:3001,https://chatbot-multiagente-ia.vercel.app"
     PORT: int = 8000
     MAX_MESSAGE_LENGTH: int = 2000
