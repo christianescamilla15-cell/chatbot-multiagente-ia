@@ -19,30 +19,30 @@ export function detectLang(text) {
 
 export const TOUR_TEXTS = {
   0: {
-    title: { en: "MultiAgente — Resident Support AI System", es: "MultiAgente — Sistema IA de Soporte a Residentes" },
+    title: { en: "MultiAgente — Resident AI Support System", es: "MultiAgente — Sistema IA de Soporte a Residentes" },
     text: {
-      en: "This resident support system uses 8 specialized AI agents to help residents of Residencial Las Palmas. It handles tech support, maintenance, billing (with OTP verification), general info, escalation, and more. The AI routes your messages automatically. Let me show you!",
-      es: "Este sistema de soporte usa 8 agentes IA especializados para atender a los residentes de Residencial Las Palmas. Maneja soporte tecnico, mantenimiento, facturacion (con verificacion OTP), info general, escalamiento y mas. La IA rutea tus mensajes automaticamente. Te muestro como funciona!",
+      en: "Welcome! This is a production AI system for Residencial Las Palmas (500 residents). It uses **8 specialized agents**, WhatsApp OTP verification, PostgreSQL with 11 tables, and a full Admin Panel. Let me show you every feature!",
+      es: "Bienvenido! Este es un sistema de IA en produccion para Residencial Las Palmas (500 residentes). Usa **8 agentes especializados**, verificacion OTP por WhatsApp, PostgreSQL con 11 tablas, y un Admin Panel completo. Te muestro cada funcion!",
     },
   },
   1: {
-    en: "These are the 8 AI agents. **Router** classifies your intent, **Sentinel** verifies your identity via OTP, **Nova** handles tech support, **Atlas** handles maintenance, **Aria** handles billing (requires verification), **Orion** handles general info, **Nexus** escalates to human, and **Closure** summarizes the case.",
-    es: "Estos son los 8 agentes IA. **Router** clasifica tu intencion, **Sentinel** verifica tu identidad via OTP, **Nova** maneja soporte tecnico, **Atlas** mantenimiento, **Aria** facturacion (requiere verificacion), **Orion** info general, **Nexus** escala a humano, y **Closure** resume el caso.",
+    en: "These are the **8 AI agents**: **Router** (intent classifier via LLM), **Sentinel** (OTP identity verification), **Nova** (tech support: WiFi, cameras), **Atlas** (maintenance: leaks, elevator), **Aria** (billing — requires OTP!), **Orion** (general info, FAQ), **Nexus** (escalation to human), **Closure** (case summary). Each has its own color and role.",
+    es: "Estos son los **8 agentes IA**: **Router** (clasificador de intencion via LLM), **Sentinel** (verificacion OTP), **Nova** (soporte tecnico: WiFi, camaras), **Atlas** (mantenimiento: fugas, elevador), **Aria** (facturacion — requiere OTP!), **Orion** (info general, FAQ), **Nexus** (escalamiento a humano), **Closure** (resumen del caso). Cada uno tiene su color y rol.",
   },
   2: {
-    en: "Type your message here. Try: 'What are the pool hours?', 'I want to know my balance', or 'There's a water leak in my bathroom'. The AI will route you to the right agent.",
-    es: "Escribe tu mensaje aqui. Prueba: 'Cual es el horario de la alberca?', 'Quiero saber mi saldo', o 'Hay una fuga de agua en mi bano'. La IA te conectara con el agente correcto.",
+    en: "Type your message here. Try these to see different agents:\n- **'Pool hours?'** → Orion (general)\n- **'My WiFi is slow'** → Nova (tech support)\n- **'Water leak!'** → Atlas (maintenance)\n- **'Check my balance'** → Sentinel asks for OTP first!\nThe **resident bar** below shows your identity and verification status.",
+    es: "Escribe tu mensaje aqui. Prueba estos para ver diferentes agentes:\n- **'Horario de alberca?'** → Orion (general)\n- **'Mi WiFi esta lento'** → Nova (soporte)\n- **'Fuga de agua!'** → Atlas (mantenimiento)\n- **'Mi saldo pendiente'** → Sentinel pide OTP primero!\nLa **barra de residente** abajo muestra tu identidad y estado de verificacion.",
   },
   3: {
-    en: "The agent responded with info from the **knowledge base** and **resident database**. Notice the agent transfer animation when routing between specialists!",
-    es: "El agente respondio con informacion de la **base de conocimiento** y la **base de datos de residentes**. Observa la animacion de transferencia cuando cambia de agente!",
+    en: "The agent responded using the **knowledge base** (5 docs: rules, schedules, FAQ, payments, maintenance) and the **resident database** (500 residents, 3000 payments, 200 tickets). Notice the **agent transfer animation** when routing between specialists!",
+    es: "El agente respondio usando la **base de conocimiento** (5 docs: reglamento, horarios, FAQ, pagos, mantenimiento) y la **base de datos** (500 residentes, 3000 pagos, 200 tickets). Observa la **animacion de transferencia** cuando cambia de agente!",
   },
   4: {
-    en: "The analytics panel shows message distribution across agents, verification status, and system stats (500 residents, 200 tickets, response latency).",
-    es: "El panel de analiticas muestra distribucion de mensajes entre agentes, estado de verificacion, y stats del sistema (500 residentes, 200 tickets, latencia).",
+    en: "Click **Dashboard** to see live metrics (tickets, residents, runs, audit). Click **Admin Panel** for the full operational interface: manage residents, tickets, payments, sync conflicts, and audit logs. Everything is connected to real PostgreSQL data.",
+    es: "Click **Dashboard** para ver metricas en vivo (tickets, residentes, ejecuciones, auditoria). Click **Admin Panel** para la interfaz operacional completa: gestionar residentes, tickets, pagos, conflictos de sync, y logs de auditoria. Todo conectado a datos reales de PostgreSQL.",
   },
   5: {
-    en: "Tour complete! Try asking about your balance — you'll see the OTP verification flow in action. 8 agents, 500 residents, real database.",
-    es: "Tour completo! Intenta preguntar por tu saldo — veras el flujo de verificacion OTP en accion. 8 agentes, 500 residentes, base de datos real.",
+    en: "Tour complete! Key features to try:\n- **Ask for your balance** → OTP verification flow\n- **Report a water leak** → Automatic ticket creation\n- **Open Admin Panel** → See 500 residents, 200 tickets, audit log\n- **Change resident** → Simulate any of 500 residents\n\n8 agents. 500 residents. 11 DB tables. Real OTP. Production-grade.",
+    es: "Tour completo! Funciones clave para probar:\n- **Pregunta tu saldo** → Flujo de verificacion OTP\n- **Reporta fuga de agua** → Creacion automatica de ticket\n- **Abre Admin Panel** → Ve 500 residentes, 200 tickets, auditoria\n- **Cambia residente** → Simula cualquiera de 500 residentes\n\n8 agentes. 500 residentes. 11 tablas DB. OTP real. Production-grade.",
   },
 };
