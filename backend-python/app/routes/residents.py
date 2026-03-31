@@ -68,6 +68,20 @@ async def reset_session(req: ResetRequest):
     return {"status": "ok", "message": "Session reset"}
 
 
+@router.get("/env-check")
+async def env_check():
+    """Debug: verify env vars are loaded."""
+    from app.config import settings
+    return {
+        "groq_key_set": bool(settings.GROQ_API_KEY),
+        "groq_key_prefix": settings.GROQ_API_KEY[:10] + "..." if settings.GROQ_API_KEY else "EMPTY",
+        "anthropic_key_set": bool(settings.ANTHROPIC_API_KEY),
+        "twilio_sid_set": bool(settings.TWILIO_SID),
+        "database_url_set": bool(settings.DATABASE_URL),
+        "is_demo_mode": settings.is_demo_mode,
+    }
+
+
 @router.get("/db-check")
 async def db_check():
     """Debug endpoint to verify DB connection."""
