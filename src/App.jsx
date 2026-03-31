@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Lenis from "lenis";
 import { AGENTS } from "./constants/agents.js";
 import { useChat } from "./hooks/useChat.js";
 import ErrorBoundary from "./components/common/ErrorBoundary.jsx";
