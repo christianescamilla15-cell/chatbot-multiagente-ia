@@ -116,7 +116,7 @@ export default function AdminPanel({ onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: COLORS.bg, display: "flex", flexDirection: isMobile ? "column" : "row" }}>
       {/* Sidebar */}
       <div style={{
-        width: isMobile ? "100%" : 200, background: "#0D1424",
+        width: isMobile ? "100%" : 200, background: "#1E293B",
         borderRight: isMobile ? "none" : `1px solid ${COLORS.border}`,
         borderBottom: isMobile ? `1px solid ${COLORS.border}` : "none",
         padding: isMobile ? "8px" : "16px 8px",
