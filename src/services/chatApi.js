@@ -35,6 +35,7 @@ export async function sendResidentMessage(message, phone = DEFAULT_PHONE) {
       provider: data.provider || "unknown",
       latencyMs: data.latency_ms || 0,
       runId: data.run_id || "",
+      residentName: data.resident_name || "",
     };
   } catch (err) {
     console.error("MultiAgente API error:", err);

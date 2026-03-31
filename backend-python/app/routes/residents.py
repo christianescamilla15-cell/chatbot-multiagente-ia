@@ -108,6 +108,18 @@ async def list_runs(limit: int = 20):
     return {"runs": runs, "total": len(runs)}
 
 
+@router.get("/sample")
+async def sample_residents(limit: int = 10):
+    """Get a sample of residents for the demo selector."""
+    residents = await fetch_all(
+        """SELECT id, full_name, phone, unit_number, building, resident_status
+           FROM residents WHERE resident_status = 'active'
+           ORDER BY id LIMIT $1""",
+        limit
+    )
+    return {"residents": residents}
+
+
 @router.get("/knowledge")
 async def list_knowledge():
     """List all knowledge base documents."""

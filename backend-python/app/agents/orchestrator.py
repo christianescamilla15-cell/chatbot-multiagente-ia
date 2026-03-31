@@ -110,7 +110,7 @@ async def process_message(
         if code == "RATE_LIMITED":
             text = "Ya te envié un código hace menos de 1 minuto. Revisa tu WhatsApp e ingrésalo aquí."
         else:
-            sent = await sentinel.send_otp_whatsapp(phone, code)
+            sent = await sentinel.send_otp_whatsapp(phone, code, resident.get("full_name", ""))
             if sent:
                 text = f"🔐 Para acceder a información de facturación, necesito verificar tu identidad.\n\nTe envié un código de 6 dígitos a tu WhatsApp. Ingrésalo aquí para continuar."
             else:
@@ -124,6 +124,7 @@ async def process_message(
             "session_id": str(session["id"]),
             "requires_verification": True,
             "intent": classification.get("intent"),
+            "resident_name": resident.get("full_name", ""),
         }
 
     # ── Step 6: Get DB context for the agent ──
@@ -172,6 +173,8 @@ async def process_message(
         "confidence": classification.get("confidence"),
         "session_id": str(session["id"]),
         "verified": session.get("is_verified", False),
+        "resident_name": resident.get("full_name", ""),
+        "unit_number": resident.get("unit_number", ""),
         "tokens": response.get("tokens", 0),
         "provider": response.get("provider"),
         "latency_ms": latency_ms,

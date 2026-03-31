@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
 import string
 from datetime import datetime, timedelta
@@ -125,22 +126,30 @@ class SentinelAgent:
             remaining = record["max_attempts"] - record["attempts"] - 1
             return {"verified": False, "reason": "invalid_code", "attempts_remaining": remaining}
 
-    async def send_otp_whatsapp(self, phone: str, code: str) -> bool:
-        """Send OTP code via WhatsApp using Twilio."""
+    async def send_otp_whatsapp(self, phone: str, code: str, resident_name: str = "") -> bool:
+        """Send OTP code via WhatsApp using Twilio.
+        In demo mode, always sends to DEMO_PHONE regardless of resident's phone.
+        """
+        DEMO_PHONE = os.environ.get("DEMO_PHONE", "+5215579605324")
+
         if not settings.TWILIO_SID or not settings.TWILIO_TOKEN:
             logger.warning("Twilio not configured — OTP not sent")
             return False
+
+        # In demo: always send to the demo phone (Christian's WhatsApp)
+        target_phone = DEMO_PHONE if phone != DEMO_PHONE else phone
 
         try:
             from twilio.rest import Client
             client = Client(settings.TWILIO_SID, settings.TWILIO_TOKEN)
 
+            name_line = f" para {resident_name}" if resident_name else ""
             message = client.messages.create(
-                body=f"🔐 Tu código de verificación es: *{code}*\n\nVálido por 5 minutos. No compartas este código.",
+                body=f"🔐 Codigo de verificacion{name_line}: *{code}*\n\nResidente: {phone}\nValido por 5 minutos. No compartas este codigo.",
                 from_=settings.TWILIO_WHATSAPP_FROM,
-                to=f"whatsapp:{phone}",
+                to=f"whatsapp:{target_phone}",
             )
-            logger.info("OTP sent via WhatsApp to %s: sid=%s", phone, message.sid)
+            logger.info("OTP sent via WhatsApp to %s (target: %s): sid=%s", phone, target_phone, message.sid)
             return True
         except Exception as e:
             logger.error("Failed to send OTP via WhatsApp: %s", e)

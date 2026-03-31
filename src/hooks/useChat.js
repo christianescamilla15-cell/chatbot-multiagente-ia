@@ -17,6 +17,8 @@ export function useChat() {
   const [lang, setLang] = useState("es");
   const [verified, setVerified] = useState(false);
   const [sessionId, setSessionId] = useState("");
+  const [phone, setPhone] = useState("+5215579605324");
+  const [residentName, setResidentName] = useState("Christian Hernandez Escamilla");
   const [stats, setStats] = useState(null);
   const [ratings, setRatings] = useState(() => { try { const s = localStorage.getItem("multiagente_ratings"); if (s) return JSON.parse(s); } catch {} return {}; });
   const bottomRef = useRef(null);
@@ -84,7 +86,7 @@ export function useChat() {
     setLoading(true);
 
     try {
-      const result = await sendResidentMessage(content);
+      const result = await sendResidentMessage(content, phone);
 
       // Handle agent transfer animation
       const targetAgent = result.agent || "orion";
@@ -99,6 +101,7 @@ export function useChat() {
       // Update session state
       if (result.sessionId) setSessionId(result.sessionId);
       if (result.verified) setVerified(true);
+      if (result.residentName) setResidentName(result.residentName);
 
       // Build metadata for the message
       const metadata = {};
@@ -136,6 +139,7 @@ export function useChat() {
   return {
     messages, input, setInput, loading, agent, setAgent,
     lang, setLang, ratings, handleRate, verified, sessionId, stats,
+    phone, setPhone, residentName,
     clearChat, exportChat, suggestions, firstFromAgent,
     sendMessage, bottomRef, inputRef,
   };
