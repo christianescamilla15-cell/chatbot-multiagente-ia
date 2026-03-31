@@ -60,9 +60,9 @@ async function apiPost(path, body) {
 const sidebarBtn = (active) => ({
   display: "block", width: "100%", textAlign: "left",
   padding: "10px 16px", border: "none", borderRadius: 8, cursor: "pointer",
-  background: active ? `${COLORS.blue}20` : "transparent",
-  color: active ? COLORS.blue : COLORS.muted,
-  fontSize: 13, fontWeight: active ? 600 : 400, fontFamily: "'DM Sans', sans-serif",
+  background: active ? `${COLORS.blue}30` : "rgba(255,255,255,0.05)",
+  color: active ? "#FFFFFF" : "#E2E8F0",
+  fontSize: 13, fontWeight: active ? 700 : 500, fontFamily: "'DM Sans', sans-serif",
   borderLeft: active ? `3px solid ${COLORS.blue}` : "3px solid transparent",
   transition: "all 0.2s",
 });
@@ -116,7 +116,7 @@ export default function AdminPanel({ onClose }) {
     <div style={{ position: "fixed", inset: 0, zIndex: 9000, background: COLORS.bg, display: "flex", flexDirection: isMobile ? "column" : "row" }}>
       {/* Sidebar */}
       <div style={{
-        width: isMobile ? "100%" : 200, background: "#1E293B",
+        width: isMobile ? "100%" : 210, background: "#1E293B",
         borderRight: isMobile ? "none" : `1px solid ${COLORS.border}`,
         borderBottom: isMobile ? `1px solid ${COLORS.border}` : "none",
         padding: isMobile ? "8px" : "16px 8px",
