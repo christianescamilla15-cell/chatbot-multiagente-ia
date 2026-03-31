@@ -12,6 +12,7 @@ import ChatPanel from "./components/chat/ChatPanel.jsx";
 import StatsPanel from "./components/chat/StatsPanel.jsx";
 import QuickActions from "./components/chat/QuickActions.jsx";
 import ChatInput from "./components/chat/ChatInput.jsx";
+import DashboardPanel from "./components/chat/DashboardPanel.jsx";
 import ExportButton from "./components/chat/ExportButton.jsx";
 import AgentStats from "./components/chat/AgentStats.jsx";
 
@@ -78,6 +79,7 @@ export default function SynapseAssistant() {
   const [showStats, setShowStats] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showAgentStats, setShowAgentStats] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const tourActive = tourStep !== null;
 
@@ -176,6 +178,30 @@ export default function SynapseAssistant() {
               onRate={handleRate} bottomRef={bottomRef}
             />
           </ErrorBoundary>
+
+          {/* Dashboard toggle button */}
+          <div style={{ padding: "4px 16px", display: "flex", justifyContent: "center" }}>
+            <button onClick={() => setShowDashboard(!showDashboard)} style={{
+              background: showDashboard ? `${ca.color}15` : "rgba(255,255,255,0.03)",
+              border: `1px solid ${showDashboard ? `${ca.color}25` : "rgba(255,255,255,0.06)"}`,
+              borderRadius: 8, padding: "4px 14px", fontSize: 10, fontWeight: 600,
+              color: showDashboard ? ca.color : "rgba(255,255,255,0.4)", cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif",
+            }}>{showDashboard ? "Cerrar Dashboard" : "Dashboard"}</button>
+          </div>
+
+          <AnimatePresence>
+            {showDashboard && (
+              <motion.div key="dashboard"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <DashboardPanel agent={agent} />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <QuickActions suggestions={suggestions} loading={loading} agent={agent} onSend={sendMessage} />
 

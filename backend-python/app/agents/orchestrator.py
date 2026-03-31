@@ -16,6 +16,7 @@ from app.agents.orion_agent import OrionAgent
 from app.agents.nexus_agent import NexusAgent
 from app.agents.closure_agent import ClosureAgent
 from app.db.client import execute, fetch_one, fetch_all
+from app.db.audit import log_otp_send, log_otp_verify, log_session_create, log_escalation
 
 logger = logging.getLogger(__name__)
 
@@ -58,10 +59,12 @@ async def process_message(
 
     # ── Step 2: Get or create session ──
     session = await sentinel.get_or_create_session(resident["id"], phone)
+    await log_session_create(resident["id"], str(session["id"]))
 
     # ── Step 3: Check if this is an OTP code response ──
     if message.strip().isdigit() and len(message.strip()) == 6:
         result = await sentinel.verify_otp(resident["id"], session["id"], message.strip())
+        await log_otp_verify(resident["id"], result["verified"], result.get("reason", ""))
         if result["verified"]:
             agent_path.append("SentinelAgent:verify_success")
             return {
@@ -110,6 +113,7 @@ async def process_message(
         if code == "RATE_LIMITED":
             text = "Ya te envié un código hace menos de 1 minuto. Revisa tu WhatsApp e ingrésalo aquí."
         else:
+            await log_otp_send(resident["id"], phone)
             sent = await sentinel.send_otp_whatsapp(phone, code, resident.get("full_name", ""))
             if sent:
                 text = f"🔐 Para acceder a información de facturación, necesito verificar tu identidad.\n\nTe envié un código de 6 dígitos a tu WhatsApp. Ingrésalo aquí para continuar."

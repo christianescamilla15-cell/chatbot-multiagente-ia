@@ -6,8 +6,11 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 import os
+from fastapi import UploadFile, File
 from app.agents.orchestrator import process_message
 from app.db.client import execute, fetch_one, fetch_all, get_pool
+from app.integrations.drive_sync import sync_from_csv
+from app.integrations.email_service import send_ticket_notification
 
 router = APIRouter(prefix="/api/residents", tags=["residents"])
 
@@ -143,3 +146,79 @@ async def list_knowledge():
     """List all knowledge base documents."""
     docs = await fetch_all("SELECT id, title, category, is_active FROM knowledge_documents ORDER BY category")
     return {"documents": docs}
+
+
+@router.get("/audit")
+async def audit_log(limit: int = 50):
+    """View recent audit log entries."""
+    logs = await fetch_all(
+        "SELECT * FROM resident_change_log ORDER BY created_at DESC LIMIT $1", limit
+    )
+    return {"logs": logs, "total": len(logs)}
+
+
+@router.get("/residents-list")
+async def residents_list(page: int = 1, per_page: int = 20, search: str | None = None):
+    """Paginated resident list with optional search."""
+    offset = (page - 1) * per_page
+    if search:
+        residents = await fetch_all(
+            """SELECT id, full_name, phone, unit_number, building, resident_status, created_at
+               FROM residents WHERE full_name ILIKE $1 OR unit_number ILIKE $1 OR phone ILIKE $1
+               ORDER BY id LIMIT $2 OFFSET $3""",
+            f"%{search}%", per_page, offset
+        )
+        total = await fetch_one("SELECT COUNT(*) as c FROM residents WHERE full_name ILIKE $1 OR unit_number ILIKE $1", f"%{search}%")
+    else:
+        residents = await fetch_all(
+            "SELECT id, full_name, phone, unit_number, building, resident_status, created_at FROM residents ORDER BY id LIMIT $1 OFFSET $2",
+            per_page, offset
+        )
+        total = await fetch_one("SELECT COUNT(*) as c FROM residents")
+    return {"residents": residents, "total": total["c"] if total else 0, "page": page, "per_page": per_page}
+
+
+@router.post("/sync")
+async def sync_residents(file: UploadFile = File(...)):
+    """Upload CSV to sync residents from Google Drive export."""
+    content = (await file.read()).decode("utf-8")
+    result = await sync_from_csv(content, source="drive-upload")
+    return result
+
+
+@router.get("/pending-removal")
+async def pending_removal():
+    """List residents flagged for removal (from Drive sync)."""
+    residents = await fetch_all(
+        "SELECT id, full_name, phone, unit_number FROM residents WHERE resident_status = 'pending_removal' ORDER BY updated_at DESC"
+    )
+    return {"residents": residents, "total": len(residents)}
+
+
+@router.post("/{resident_id}/confirm-removal")
+async def confirm_removal(resident_id: int):
+    """Confirm removal of a resident (soft archive)."""
+    await execute("UPDATE residents SET resident_status = 'archived', updated_at = NOW() WHERE id = $1", resident_id)
+    return {"status": "archived", "resident_id": resident_id}
+
+
+@router.post("/{resident_id}/restore")
+async def restore_resident(resident_id: int):
+    """Restore a pending-removal or archived resident."""
+    await execute("UPDATE residents SET resident_status = 'active', updated_at = NOW() WHERE id = $1", resident_id)
+    return {"status": "active", "resident_id": resident_id}
+
+
+@router.get("/conversations/{phone}")
+async def conversation_history(phone: str, limit: int = 50):
+    """Get conversation history for a resident by phone."""
+    resident = await fetch_one("SELECT id, full_name FROM residents WHERE phone = $1", phone)
+    if not resident:
+        return {"messages": [], "resident": None}
+    messages = await fetch_all(
+        """SELECT m.direction, m.agent, m.content, m.channel, m.created_at
+           FROM messages m WHERE m.resident_id = $1
+           ORDER BY m.created_at DESC LIMIT $2""",
+        resident["id"], limit
+    )
+    return {"messages": messages, "resident": dict(resident)}
