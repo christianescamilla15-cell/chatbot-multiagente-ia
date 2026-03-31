@@ -118,8 +118,9 @@ async def process_message(
             if sent:
                 text = "Para acceder a informacion de facturacion, necesito verificar tu identidad.\n\nTe envie un codigo de 6 digitos a tu WhatsApp. Ingresalo aqui para continuar."
             else:
-                # Fallback: show code only if WhatsApp send failed
-                text = f"Para verificar tu identidad, ingresa este codigo: **{code}**\n\n(Valido por 5 minutos)"
+                # WhatsApp failed — still don't show code in chat for security
+                # Admin can see masked code in Admin Panel > Resident Detail > Verifications
+                text = "Para acceder a informacion de facturacion, necesito verificar tu identidad.\n\nNo se pudo enviar el codigo por WhatsApp. Contacta administracion o intenta de nuevo en 1 minuto."
 
         return {
             "run_id": run_id,
