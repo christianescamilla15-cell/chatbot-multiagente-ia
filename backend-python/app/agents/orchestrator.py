@@ -111,14 +111,15 @@ async def process_message(
         code = await sentinel.generate_otp(resident["id"], session["id"], phone)
 
         if code == "RATE_LIMITED":
-            text = "Ya te envié un código hace menos de 1 minuto. Revisa tu WhatsApp e ingrésalo aquí."
+            text = "Ya te envie un codigo hace menos de 1 minuto. Revisa tu WhatsApp e ingresalo aqui."
         else:
             await log_otp_send(resident["id"], phone)
             sent = await sentinel.send_otp_whatsapp(phone, code, resident.get("full_name", ""))
             if sent:
-                text = f"🔐 Para acceder a información de facturación, necesito verificar tu identidad.\n\nTe envié un código de 6 dígitos a tu WhatsApp. Ingrésalo aquí para continuar."
+                text = "Para acceder a informacion de facturacion, necesito verificar tu identidad.\n\nTe envie un codigo de 6 digitos a tu WhatsApp. Ingresalo aqui para continuar."
             else:
-                text = f"🔐 Para verificar tu identidad, ingresa este código: **{code}**\n\n(Válido por 5 minutos)"
+                # Fallback: show code only if WhatsApp send failed
+                text = f"Para verificar tu identidad, ingresa este codigo: **{code}**\n\n(Valido por 5 minutos)"
 
         return {
             "run_id": run_id,

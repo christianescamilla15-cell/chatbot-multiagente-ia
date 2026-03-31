@@ -81,7 +81,7 @@ export default function SynapseAssistant() {
   const [showInfo, setShowInfo] = useState(false);
   const [showAgentStats, setShowAgentStats] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(() => new URLSearchParams(window.location.search).get("admin") === "true");
   const [tourStep, setTourStep] = useState(0);
   const tourActive = tourStep !== null;
 
@@ -190,7 +190,7 @@ export default function SynapseAssistant() {
               color: showDashboard ? ca.color : "rgba(255,255,255,0.4)", cursor: "pointer",
               fontFamily: "'DM Sans', sans-serif",
             }}>{showDashboard ? "Cerrar Dashboard" : "Dashboard"}</button>
-            <button onClick={() => setShowAdmin(true)} style={{
+            <button onClick={() => window.open(`${window.location.origin}?admin=true`, '_blank')} style={{
               background: "rgba(99,102,241,0.1)",
               border: "1px solid rgba(99,102,241,0.25)",
               borderRadius: 8, padding: "4px 14px", fontSize: 10, fontWeight: 600,

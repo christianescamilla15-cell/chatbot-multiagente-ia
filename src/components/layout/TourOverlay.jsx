@@ -92,7 +92,7 @@ export default function TourOverlay({ step, lang, onSkip, onNext, onTryChat, onT
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,0.6)", pointerEvents: "auto", transition: "all 0.3s ease", cursor: "pointer",
+      <div style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(0,0,0,0.4)", pointerEvents: "auto", transition: "all 0.3s ease", cursor: "pointer",
         clipPath: spotlightRect ? `polygon(0% 0%, 0% 100%, ${spotlightRect.left - 8}px 100%, ${spotlightRect.left - 8}px ${spotlightRect.top - 8}px, ${spotlightRect.left + spotlightRect.width + 8}px ${spotlightRect.top - 8}px, ${spotlightRect.left + spotlightRect.width + 8}px ${spotlightRect.top + spotlightRect.height + 8}px, ${spotlightRect.left - 8}px ${spotlightRect.top + spotlightRect.height + 8}px, ${spotlightRect.left - 8}px 100%, 100% 100%, 100% 0%)` : undefined,
       }} onClick={() => btnAction && btnAction()} />
       {spotlightRect && (

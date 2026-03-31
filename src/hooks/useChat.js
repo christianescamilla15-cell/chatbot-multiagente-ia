@@ -52,19 +52,30 @@ export function useChat() {
 
   const suggestions = useMemo(() => {
     if (messages.length <= 1) {
-      return [
-        "¿Cuál es el horario de la alberca?",
-        "Quiero saber mi saldo pendiente",
-        "Hay una fuga de agua en mi baño",
-        "Mi internet no funciona",
-        "Quiero reservar el salón de fiestas",
-      ];
+      return lang === "en"
+        ? ["Pool hours?", "Check my balance", "Water leak in my bathroom", "My WiFi is slow", "Book party room"]
+        : ["Horario de la alberca?", "Quiero saber mi saldo", "Fuga de agua en mi bano", "Mi internet no funciona", "Reservar salon de fiestas"];
     }
     if (verified) {
-      return ["¿Cuál es mi estado de cuenta?", "Necesito un recibo de pago", "¿Cuánto debo?"];
+      return lang === "en"
+        ? ["Account statement", "Payment receipt", "How much do I owe?", "Payment info"]
+        : ["Estado de cuenta", "Recibo de pago", "Cuanto debo?", "Info de pago"];
     }
-    return [];
-  }, [messages.length, verified]);
+    // Show contextual suggestions based on last agent
+    const lastAssistant = [...messages].reverse().find(m => m.role === "assistant" && m.agent);
+    const lastAgent = lastAssistant?.agent || "orion";
+    const agentSuggestions = {
+      orion: lang === "en" ? ["Pool hours?", "Gym schedule?", "Pet rules?", "Book party room"] : ["Horario alberca?", "Horario gym?", "Reglas mascotas?", "Reservar salon"],
+      nova: lang === "en" ? ["WiFi is slow", "Camera down", "Intercom broken", "Access app fails"] : ["WiFi lento", "Camara no graba", "Interfon no sirve", "App de acceso falla"],
+      atlas: lang === "en" ? ["Water leak", "Elevator stuck", "Light out", "Garage door"] : ["Fuga de agua", "Elevador atorado", "Luz fundida", "Puerta garage"],
+      aria: lang === "en" ? ["My balance?", "Need receipt", "Account statement", "Payment methods"] : ["Mi saldo?", "Necesito recibo", "Estado de cuenta", "Formas de pago"],
+      sentinel: lang === "en" ? ["Enter verification code"] : ["Ingresar codigo de verificacion"],
+      nexus: lang === "en" ? ["Talk to a person", "File complaint"] : ["Hablar con persona", "Poner queja"],
+      closure: lang === "en" ? ["Is my issue resolved?", "Thank you"] : ["Se resolvio?", "Gracias"],
+      router: lang === "en" ? ["Check balance", "Report problem"] : ["Consultar saldo", "Reportar problema"],
+    };
+    return agentSuggestions[lastAgent] || agentSuggestions.orion;
+  }, [messages, verified, agent, lang]);
 
   const firstFromAgent = useMemo(() => {
     const result = {};
