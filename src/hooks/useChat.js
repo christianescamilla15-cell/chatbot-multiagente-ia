@@ -1,7 +1,7 @@
 // Chat state management hook — MultiAgente Resident Support System
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { timestamp, nextMsgId } from "../utils/messageFormatter.js";
-import { sendResidentMessage, getSystemStats } from "../services/chatApi.js";
+import { sendResidentMessage, getSystemStats, resetSession } from "../services/chatApi.js";
 import { AGENT_NAME_MAP } from "../constants/agents.js";
 
 const WELCOME_MSG = "¡Hola! Soy el asistente de Residencial Las Palmas. Tengo agentes especializados para ayudarte con soporte técnico, mantenimiento, facturación e información general. ¿En qué puedo ayudarte?";
@@ -39,10 +39,11 @@ export function useChat() {
   }, [ratings]);
 
   const clearChat = useCallback(() => {
+    resetSession(phone);
     setMessages([{ id: nextMsgId(), role: "assistant", agent: "orion", content: WELCOME_MSG, timestamp: timestamp() }]);
-    setRatings({}); setAgent("orion"); setVerified(false); setSessionId("");
+    setRatings({}); setAgent("orion"); setVerified(false); setSessionId(""); setResidentName("");
     localStorage.removeItem("multiagente_msgs"); localStorage.removeItem("multiagente_ratings");
-  }, []);
+  }, [phone]);
 
   const exportChat = useCallback(() => {
     const blob = new Blob([JSON.stringify(messages, null, 2)], { type: "application/json" });

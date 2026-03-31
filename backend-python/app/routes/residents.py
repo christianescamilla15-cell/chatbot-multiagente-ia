@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 import os
 from app.agents.orchestrator import process_message
-from app.db.client import fetch_one, fetch_all, get_pool
+from app.db.client import execute, fetch_one, fetch_all, get_pool
 
 router = APIRouter(prefix="/api/residents", tags=["residents"])
 
@@ -45,6 +45,24 @@ async def lookup_resident(phone: str):
     if not resident:
         return {"found": False}
     return {"found": True, "resident": dict(resident)}
+
+
+class ResetRequest(BaseModel):
+    phone: str = "+5215579605324"
+
+
+@router.post("/reset-session")
+async def reset_session(req: ResetRequest):
+    """Reset/expire all sessions for a phone number (used by frontend clear chat)."""
+    await execute(
+        "UPDATE resident_sessions SET is_verified = false, verification_level = 'none', expires_at = NOW() - INTERVAL '1 hour' WHERE phone = $1",
+        req.phone
+    )
+    await execute(
+        "UPDATE verification_codes SET status = 'expired' WHERE phone = $1 AND status = 'pending'",
+        req.phone
+    )
+    return {"status": "ok", "message": "Session reset"}
 
 
 @router.get("/db-check")

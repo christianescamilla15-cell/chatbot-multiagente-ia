@@ -58,6 +58,19 @@ export async function getSystemStats() {
 }
 
 /**
+ * Reset session (expire verification) for a phone number.
+ */
+export async function resetSession(phone = DEFAULT_PHONE) {
+  try {
+    await fetch(`${API_URL}/api/residents/reset-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+  } catch {}
+}
+
+/**
  * Lookup resident by phone.
  */
 export async function lookupResident(phone) {
