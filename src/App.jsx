@@ -55,19 +55,7 @@ function ScrollProgress() {
 }
 
 export default function SynapseAssistant() {
-  // Lenis smooth scroll
-  useEffect(() => {
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-    });
-    function raf(time) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-    requestAnimationFrame(raf);
-    return () => lenis.destroy();
-  }, []);
+  // Lenis removed — was blocking scroll inside chat panel
 
   const {
     messages, input, setInput, loading, agent, setAgent,
