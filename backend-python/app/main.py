@@ -113,3 +113,7 @@ app.include_router(system_router)
 # Resident Support System routes
 from app.routes.residents import router as residents_router
 app.include_router(residents_router)
+
+# Admin Panel routes
+from app.routes.admin import router as admin_router
+app.include_router(admin_router)
