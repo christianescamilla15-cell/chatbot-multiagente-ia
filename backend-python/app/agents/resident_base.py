@@ -35,8 +35,13 @@ class ResidentAgent(ABC):
         system_prompt = self._build_system_prompt(resident, session, db_context, kb_context)
 
         if settings.GROQ_API_KEY:
-            text, tokens = await self._call_groq(message, context, system_prompt)
-            provider = "groq"
+            try:
+                text, tokens = await self._call_groq(message, context, system_prompt)
+                provider = "groq"
+            except Exception as e:
+                logger.warning("Groq agent call failed: %s", e)
+                text = "El sistema esta experimentando alta demanda. Intenta de nuevo en unos minutos."
+                tokens, provider = 0, "rate_limited"
         elif settings.ANTHROPIC_API_KEY and not settings.is_demo_mode:
             text, tokens = await self._call_claude(message, context, system_prompt)
             provider = "claude"

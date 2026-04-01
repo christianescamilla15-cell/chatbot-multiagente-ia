@@ -62,13 +62,17 @@ async def _classify_groq(message: str, context: list[dict]) -> dict:
         {"role": "user", "content": message},
     ]
 
-    response = await client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        max_tokens=256,
-        temperature=0.1,
-        response_format={"type": "json_object"},
-    )
+    try:
+        response = await client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            max_tokens=150,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        logger.warning("Groq classify failed (rate limit?): %s", e)
+        return _classify_demo(message)
 
     text = response.choices[0].message.content or "{}"
     try:
@@ -122,8 +126,8 @@ def _classify_demo(message: str) -> dict:
     """Rule-based fallback classifier."""
     msg = message.lower()
 
-    if any(w in msg for w in ["pago", "recibo", "saldo", "factura", "adeudo", "cobro", "cuenta"]):
-        return {"intent": "billing", "agent": "AriaAgent", "confidence": 0.85, "requires_verification": True, "summary": "Consulta de facturación"}
+    if any(w in msg for w in ["pago", "recibo", "saldo", "factura", "adeudo", "cobro", "cuenta", "debo", "deuda", "cuanto debo", "estado de cuenta"]):
+        return {"intent": "billing", "agent": "AriaAgent", "confidence": 0.85, "requires_verification": True, "summary": "Consulta de facturacion"}
     elif any(w in msg for w in ["internet", "wifi", "señal", "cámara", "interfón", "acceso", "red"]):
         return {"intent": "technical_support", "agent": "NovaAgent", "confidence": 0.85, "requires_verification": False, "summary": "Soporte técnico"}
     elif any(w in msg for w in ["fuga", "elevador", "luz", "puerta", "tubería", "reparar", "mantenimiento"]):
