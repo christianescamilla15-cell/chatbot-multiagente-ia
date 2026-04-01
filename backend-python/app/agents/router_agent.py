@@ -22,20 +22,23 @@ SENSITIVE_INTENTS = {"billing", "account_info", "receipt", "balance", "payment_h
 
 SYSTEM_PROMPT = """You are RouterAgent, the intent classifier for a residential support system.
 
-Analyze the user's message and return a JSON object with:
+Return a JSON object with:
 - "intent": one of ["technical_support", "maintenance", "billing", "general", "escalation"]
 - "confidence": float 0.0-1.0
-- "requires_verification": boolean (true if the request involves sensitive data like billing, account info, personal data)
-- "summary": brief summary of the request in Spanish
+- "requires_verification": boolean (true ONLY for billing/financial data)
+- "summary": brief summary in Spanish
 
-Rules:
-- billing/payments/receipts/balances → billing (requires_verification: true)
-- internet/wifi/cameras/access → technical_support
-- leaks/elevator/lights/repairs → maintenance
-- rules/schedule/pool/gym/FAQ → general
-- complaints/unresolved/talk to human → escalation
+Classification rules:
+- saldo/recibo/factura/adeudo/cobro/estado de cuenta/cuanto debo → billing (requires_verification: true)
+- internet/wifi/camara/interfon/acceso/red/app → technical_support
+- fuga/elevador/luz fundida/puerta/tuberia/reparar/mantenimiento/agua → maintenance
+- horario/alberca/gimnasio/salon/reservar/reglamento/mascotas/mudanza/estacionamiento/FAQ → general
+- queja/hablar con persona/administrador/no resuelto/inconformidad → escalation
+- greetings (hola/buenos dias) → general
+- "gracias/ok/de acuerdo" → general
+- reservaciones (salon, area comun) → general (NOT billing)
 - If confidence < 0.4, route to general
-- ALWAYS respond with valid JSON only, no extra text"""
+- ONLY JSON, no extra text"""
 
 
 async def classify_intent(message: str, context: list[dict[str, Any]] | None = None) -> dict:
