@@ -139,6 +139,18 @@ async def process_message(
     # ── Step 7: Get knowledge base context ──
     kb_context = await _get_kb_context(classification.get("intent", "general"))
 
+    # ── Step 7b: Load conversation history for context ──
+    if not context:
+        recent_msgs = await fetch_all(
+            """SELECT direction, content FROM messages
+               WHERE resident_id = $1 ORDER BY created_at DESC LIMIT 10""",
+            resident["id"]
+        )
+        # Reverse to chronological order and convert to LLM format
+        for m in reversed(recent_msgs):
+            role = "user" if m["direction"] == "inbound" else "assistant"
+            context.append({"role": role, "content": m["content"]})
+
     # ── Step 8: Route to agent ──
     agent = AGENTS.get(agent_name, AGENTS["OrionAgent"])
     agent_path.append(agent.name)
