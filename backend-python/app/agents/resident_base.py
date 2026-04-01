@@ -41,8 +41,8 @@ class ResidentAgent(ABC):
             text, tokens = await self._call_claude(message, context, system_prompt)
             provider = "claude"
         else:
-            text = self.demo_response(message, resident)
-            tokens, provider = 0, "demo"
+            text = "Sistema temporalmente no disponible. Intenta de nuevo en unos minutos."
+            tokens, provider = 0, "offline"
 
         latency_ms = int((time.time() - start) * 1000)
 
@@ -110,7 +110,7 @@ Verificado: {'Sí' if session and session.get('is_verified') else 'No'}
         response = await client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
-            max_tokens=1024,
+            max_tokens=300,
             temperature=0.3,
         )
 
@@ -133,7 +133,7 @@ Verificado: {'Sí' if session and session.get('is_verified') else 'No'}
 
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
+            max_tokens=300,
             system=system_prompt,
             messages=messages,
         )
