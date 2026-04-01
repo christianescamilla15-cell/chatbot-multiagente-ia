@@ -117,3 +117,7 @@ app.include_router(residents_router)
 # Admin Panel routes
 from app.routes.admin import router as admin_router
 app.include_router(admin_router)
+
+# WhatsApp inbound pipeline
+from app.routes.whatsapp import router as whatsapp_router
+app.include_router(whatsapp_router)
