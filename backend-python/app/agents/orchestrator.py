@@ -143,10 +143,15 @@ async def process_message(
     agent = AGENTS.get(agent_name, AGENTS["OrionAgent"])
     agent_path.append(agent.name)
 
+    # Only pass resident identity to agent if session is verified
+    # For general queries, agents should NOT know who the resident is
+    is_verified = session.get("is_verified", False)
+    resident_for_agent = dict(resident) if is_verified else None
+
     response = await agent.respond(
         message=message,
         context=context,
-        resident=dict(resident),
+        resident=resident_for_agent,
         session=dict(session),
         db_context=db_context,
         kb_context=kb_context,
@@ -179,8 +184,8 @@ async def process_message(
         "confidence": classification.get("confidence"),
         "session_id": str(session["id"]),
         "verified": session.get("is_verified", False),
-        "resident_name": resident.get("full_name", ""),
-        "unit_number": resident.get("unit_number", ""),
+        "resident_name": resident.get("full_name", "") if is_verified else "",
+        "unit_number": resident.get("unit_number", "") if is_verified else "",
         "tokens": response.get("tokens", 0),
         "provider": response.get("provider"),
         "latency_ms": latency_ms,
