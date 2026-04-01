@@ -15,6 +15,8 @@ import DashboardPanel from "./components/chat/DashboardPanel.jsx";
 import AdminPanel from "./components/admin/AdminPanel.jsx";
 import ExportButton from "./components/chat/ExportButton.jsx";
 import AgentStats from "./components/chat/AgentStats.jsx";
+import NotificationBell from "./components/common/NotificationBell.jsx";
+import { useNotifications } from "./hooks/useNotifications.js";
 
 // ─── CSS Keyframes & Global Styles ─────────────────────────────────────────
 const globalStyles = `
@@ -70,6 +72,7 @@ export default function SynapseAssistant() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [showAdmin, setShowAdmin] = useState(() => new URLSearchParams(window.location.search).get("admin") === "true");
   const [tourStep, setTourStep] = useState(0);
+  const { notifications, unreadCount, connected, markRead, markAllRead } = useNotifications();
   const tourActive = tourStep !== null;
 
   const ca = AGENTS[agent];
@@ -114,14 +117,24 @@ export default function SynapseAssistant() {
           }}
         >
 
-          <Header
-            agent={agent} lang={lang} setLang={setLang}
-            showInfo={showInfo} setShowInfo={setShowInfo}
-            showStats={showStats} setShowStats={setShowStats}
-            showAgentStats={showAgentStats} setShowAgentStats={setShowAgentStats}
-            exportChat={exportChat} clearChat={clearChat}
-            messages={messages} ratings={ratings} onStartTour={() => setTourStep(0)}
-          />
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <Header
+                agent={agent} lang={lang} setLang={setLang}
+                showInfo={showInfo} setShowInfo={setShowInfo}
+                showStats={showStats} setShowStats={setShowStats}
+                showAgentStats={showAgentStats} setShowAgentStats={setShowAgentStats}
+                exportChat={exportChat} clearChat={clearChat}
+                messages={messages} ratings={ratings} onStartTour={() => setTourStep(0)}
+              />
+            </div>
+            <div style={{ padding: "0 12px" }}>
+              <NotificationBell
+                notifications={notifications} unreadCount={unreadCount}
+                connected={connected} markRead={markRead} markAllRead={markAllRead}
+              />
+            </div>
+          </div>
 
           <ErrorBoundary fallbackLabel={lang === "en" ? "Agent selector error" : "Error en selector de agentes"}>
             <AgentSelector agent={agent} onSelect={setAgent} lang={lang} />
