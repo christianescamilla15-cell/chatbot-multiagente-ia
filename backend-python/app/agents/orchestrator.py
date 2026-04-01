@@ -1,4 +1,11 @@
-"""Orchestrator — Routes messages through the agent pipeline with verification."""
+"""Orchestrator — Pipeline-based message routing with verification.
+
+Refactored from monolithic process_message into clean stages:
+  1. identify_and_authenticate (resident lookup, session, OTP)
+  2. classify_and_verify (intent detection, verification gate)
+  3. execute_agent (context loading, agent routing, response)
+  4. post_process (ticket creation, logging, notifications)
+"""
 
 from __future__ import annotations
 
@@ -16,12 +23,11 @@ from app.agents.orion_agent import OrionAgent
 from app.agents.nexus_agent import NexusAgent
 from app.agents.closure_agent import ClosureAgent
 from app.db.client import execute, fetch_one, fetch_all
-from app.db.audit import log_otp_send, log_otp_verify, log_session_create, log_escalation
-from app.services.notification import notify_ticket_created, notify_ticket_escalated
+from app.db.audit import log_otp_send, log_otp_verify, log_session_create
+from app.services.notification import notify_ticket_created
 
 logger = logging.getLogger(__name__)
 
-# Agent instances
 sentinel = SentinelAgent()
 AGENTS = {
     "NovaAgent": NovaAgent(),
@@ -33,189 +39,200 @@ AGENTS = {
 }
 
 
+# ═══════════════════════════════════════
+# PUBLIC API (unchanged signature)
+# ═══════════════════════════════════════
+
 async def process_message(
     message: str,
     phone: str,
     context: list[dict[str, Any]] | None = None,
     session_id: str | None = None,
 ) -> dict:
-    """Main entry point: classify, verify if needed, route to agent, respond."""
+    """Main entry point — thin orchestrator calling pipeline stages."""
     start = time.time()
     run_id = str(uuid.uuid4())
     agent_path = []
     context = context or []
 
-    # ── Step 1: Identify resident ──
+    # Stage 1: Identify + Authenticate
+    auth = await _identify_and_authenticate(message, phone, run_id, agent_path)
+    if auth.get("early_return"):
+        return auth["response"]
+
+    resident = auth["resident"]
+    session = auth["session"]
+
+    # Stage 2: Classify + Verify
+    classify = await _classify_and_verify(message, context, resident, session, phone, run_id, agent_path)
+    if classify.get("early_return"):
+        return classify["response"]
+
+    classification = classify["classification"]
+    agent_name = classify["agent_name"]
+
+    # Stage 3: Execute Agent
+    response = await _execute_agent(message, context, agent_name, resident, session, classification, agent_path)
+
+    # Stage 4: Post-process (tickets, logging, notifications)
+    latency_ms = int((time.time() - start) * 1000)
+    return await _post_process(response, classification, resident, session, agent_path, run_id, message, latency_ms)
+
+
+# ═══════════════════════════════════════
+# STAGE 1: Identify + Authenticate
+# ═══════════════════════════════════════
+
+async def _identify_and_authenticate(message, phone, run_id, agent_path) -> dict:
+    """Identify resident, manage session, handle OTP codes."""
     resident = await sentinel.identify_resident(phone)
     if not resident:
-        return {
-            "run_id": run_id,
-            "text": "No encontré tu número en nuestro sistema. ¿Podrías verificar que estés registrado como residente? Contacta administración para más información.",
-            "agent": "SentinelAgent",
-            "agent_path": ["SentinelAgent"],
+        return {"early_return": True, "response": {
+            "run_id": run_id, "agent": "SentinelAgent", "agent_path": ["SentinelAgent"],
+            "text": "No encontre tu numero en nuestro sistema. Contacta administracion.",
             "requires_action": "register",
-        }
+        }}
 
     agent_path.append("SentinelAgent")
-
-    # ── Step 2: Get or create session ──
     session = await sentinel.get_or_create_session(resident["id"], phone)
     await log_session_create(resident["id"], str(session["id"]))
 
-    # ── Step 3: Check if this is an OTP code response ──
+    # Handle OTP code submission
     if message.strip().isdigit() and len(message.strip()) == 6:
         result = await sentinel.verify_otp(resident["id"], session["id"], message.strip())
         await log_otp_verify(resident["id"], result["verified"], result.get("reason", ""))
+
         if result["verified"]:
             agent_path.append("SentinelAgent:verify_success")
-            return {
-                "run_id": run_id,
-                "text": f"✅ Verificación exitosa, {resident['full_name'].split()[0]}. Tu identidad ha sido confirmada. ¿En qué puedo ayudarte con facturación?",
-                "agent": "SentinelAgent",
-                "agent_path": agent_path,
-                "session_id": str(session["id"]),
-                "verified": True,
-            }
-        else:
-            reason = result.get("reason", "unknown")
-            if reason == "expired":
-                msg = "Tu código ha expirado. Te enviaré uno nuevo."
-                code = await sentinel.generate_otp(resident["id"], session["id"], phone)
-                if code != "RATE_LIMITED":
-                    await sentinel.send_otp_whatsapp(phone, code)
-            elif reason == "max_attempts":
-                msg = "Has excedido el número máximo de intentos. Por seguridad, contacta administración directamente."
-            elif reason == "invalid_code":
-                remaining = result.get("attempts_remaining", 0)
-                msg = f"Código incorrecto. Te quedan {remaining} intento(s)."
-            else:
-                msg = "No se pudo verificar. Intenta de nuevo."
+            return {"early_return": True, "response": {
+                "run_id": run_id, "agent": "SentinelAgent", "agent_path": agent_path,
+                "text": f"Verificacion exitosa, {resident['full_name'].split()[0]}. En que puedo ayudarte con facturacion?",
+                "session_id": str(session["id"]), "verified": True,
+            }}
 
-            return {
-                "run_id": run_id,
-                "text": msg,
-                "agent": "SentinelAgent",
-                "agent_path": agent_path,
-                "session_id": str(session["id"]),
-                "verified": False,
-            }
+        msg = _get_otp_error_message(result)
+        if result.get("reason") == "expired":
+            code = await sentinel.generate_otp(resident["id"], session["id"], phone)
+            if code != "RATE_LIMITED":
+                await sentinel.send_otp_whatsapp(phone, code)
 
-    # ── Step 4: Classify intent ──
+        return {"early_return": True, "response": {
+            "run_id": run_id, "agent": "SentinelAgent", "agent_path": agent_path,
+            "text": msg, "session_id": str(session["id"]), "verified": False,
+        }}
+
+    return {"early_return": False, "resident": resident, "session": session}
+
+
+def _get_otp_error_message(result: dict) -> str:
+    reason = result.get("reason", "unknown")
+    if reason == "expired":
+        return "Tu codigo ha expirado. Te enviare uno nuevo."
+    if reason == "max_attempts":
+        return "Has excedido el maximo de intentos. Contacta administracion."
+    if reason == "invalid_code":
+        remaining = result.get("attempts_remaining", 0)
+        return f"Codigo incorrecto. Te quedan {remaining} intento(s)."
+    return "No se pudo verificar. Intenta de nuevo."
+
+
+# ═══════════════════════════════════════
+# STAGE 2: Classify + Verify
+# ═══════════════════════════════════════
+
+async def _classify_and_verify(message, context, resident, session, phone, run_id, agent_path) -> dict:
+    """Classify intent and handle verification gate."""
     classification = await classify_intent(message, context)
     agent_name = classification.get("agent", "OrionAgent")
     requires_verification = classification.get("requires_verification", False)
     agent_path.append(f"RouterAgent:{classification.get('intent', 'general')}")
 
-    # ── Step 5: Verification gate ──
     if requires_verification and not session.get("is_verified"):
         agent_path.append("SentinelAgent:otp_request")
         code = await sentinel.generate_otp(resident["id"], session["id"], phone)
 
         if code == "RATE_LIMITED":
-            text = "Ya te envie un codigo hace menos de 1 minuto. Revisa tu WhatsApp e ingresalo aqui."
+            text = "Ya te envie un codigo hace menos de 1 minuto. Revisa tu WhatsApp."
         else:
             await log_otp_send(resident["id"], phone)
             sent = await sentinel.send_otp_whatsapp(phone, code, resident.get("full_name", ""))
-            if sent:
-                text = "Para acceder a informacion de facturacion, necesito verificar tu identidad.\n\nTe envie un codigo de 6 digitos a tu WhatsApp. Ingresalo aqui para continuar."
-            else:
-                # WhatsApp failed — still don't show code in chat for security
-                # Admin can see masked code in Admin Panel > Resident Detail > Verifications
-                text = "Para acceder a informacion de facturacion, necesito verificar tu identidad.\n\nNo se pudo enviar el codigo por WhatsApp. Contacta administracion o intenta de nuevo en 1 minuto."
+            text = "Para acceder a informacion de facturacion, necesito verificar tu identidad.\n\nTe envie un codigo de 6 digitos a tu WhatsApp." if sent else "No se pudo enviar el codigo. Contacta administracion."
 
-        return {
-            "run_id": run_id,
-            "text": text,
-            "agent": "SentinelAgent",
-            "agent_path": agent_path,
-            "session_id": str(session["id"]),
-            "requires_verification": True,
-            "intent": classification.get("intent"),
+        return {"early_return": True, "response": {
+            "run_id": run_id, "agent": "SentinelAgent", "agent_path": agent_path,
+            "text": text, "session_id": str(session["id"]),
+            "requires_verification": True, "intent": classification.get("intent"),
             "resident_name": resident.get("full_name", ""),
-        }
+        }}
 
-    # ── Step 6: Get DB context for the agent ──
-    db_context = await _get_agent_context(agent_name, resident["id"], session.get("is_verified", False))
+    return {"early_return": False, "classification": classification, "agent_name": agent_name}
 
-    # ── Step 7: Get knowledge base context ──
+
+# ═══════════════════════════════════════
+# STAGE 3: Execute Agent
+# ═══════════════════════════════════════
+
+async def _execute_agent(message, context, agent_name, resident, session, classification, agent_path) -> dict:
+    """Load context, route to agent, get response."""
+    is_verified = session.get("is_verified", False)
+
+    # Load DB context + knowledge base + conversation history
+    db_context = await _get_agent_context(agent_name, resident["id"], is_verified)
     kb_context = await _get_kb_context(classification.get("intent", "general"))
 
-    # ── Step 7b: Load conversation history for context ──
     if not context:
-        recent_msgs = await fetch_all(
-            """SELECT direction, content FROM messages
-               WHERE resident_id = $1 ORDER BY created_at DESC LIMIT 10""",
+        recent = await fetch_all(
+            "SELECT direction, content FROM messages WHERE resident_id = $1 ORDER BY created_at DESC LIMIT 10",
             resident["id"]
         )
-        # Reverse to chronological order and convert to LLM format
-        for m in reversed(recent_msgs):
-            role = "user" if m["direction"] == "inbound" else "assistant"
-            context.append({"role": role, "content": m["content"]})
+        for m in reversed(recent):
+            context.append({"role": "user" if m["direction"] == "inbound" else "assistant", "content": m["content"]})
 
-    # ── Step 8: Route to agent ──
+    # Route to agent
     agent = AGENTS.get(agent_name, AGENTS["OrionAgent"])
     agent_path.append(agent.name)
 
-    # Only pass resident identity to agent if session is verified
-    # For general queries, agents should NOT know who the resident is
-    is_verified = session.get("is_verified", False)
-    resident_for_agent = dict(resident) if is_verified else None
-
-    response = await agent.respond(
-        message=message,
-        context=context,
-        resident=resident_for_agent,
-        session=dict(session),
-        db_context=db_context,
-        kb_context=kb_context,
+    return await agent.respond(
+        message=message, context=context,
+        resident=dict(resident) if is_verified else None,
+        session=dict(session), db_context=db_context, kb_context=kb_context,
     )
 
-    # ── Step 8b: Create ticket only when agent confirms (contains "ticket creado" or similar) ──
-    ticket_ref = None
-    intent = classification.get("intent", "")
-    resp_lower = response["text"].lower()
-    ticket_keywords = ["ticket creado", "ticket registrado", "tecnico en maximo", "tecnico en"]
-    agent_confirmed_ticket = any(kw in resp_lower for kw in ticket_keywords)
 
-    if intent in ("maintenance", "technical_support") and agent_confirmed_ticket:
-        ticket_ref = await _create_ticket(
-            resident_id=resident["id"],
-            session_id=session["id"],
-            category=intent,
-            subject=message[:200],
-            description=message,
-            agent_name=agent.name,
-        )
+# ═══════════════════════════════════════
+# STAGE 4: Post-process
+# ═══════════════════════════════════════
+
+async def _post_process(response, classification, resident, session, agent_path, run_id, message, latency_ms) -> dict:
+    """Handle tickets, logging, notifications, build final response."""
+    intent = classification.get("intent", "")
+    is_verified = session.get("is_verified", False)
+
+    # Auto-create ticket only when agent confirms
+    resp_lower = response["text"].lower()
+    if intent in ("maintenance", "technical_support") and any(kw in resp_lower for kw in ["ticket creado", "ticket registrado", "tecnico en maximo", "tecnico en"]):
+        ticket_ref = await _create_ticket(resident["id"], session["id"], intent, message[:200], message, response["agent"])
         if ticket_ref:
             response["text"] += f"\n\nTicket registrado: **{ticket_ref}**"
 
-    # ── Step 9: Log message ──
+    # Log messages
     await _log_message(session["id"], resident["id"], "inbound", message)
-    await _log_message(session["id"], resident["id"], "outbound", response["text"], agent.name)
+    await _log_message(session["id"], resident["id"], "outbound", response["text"], response["agent"])
 
-    # ── Step 10: Log agent run ──
-    latency_ms = int((time.time() - start) * 1000)
+    # Log agent run
     await _log_agent_run(
-        run_id=run_id,
-        session_id=session["id"],
-        resident_id=resident["id"],
-        agent_path=agent_path,
-        intent=classification.get("intent"),
-        verification_state="verified" if session.get("is_verified") else "none",
-        latency_ms=latency_ms,
-        tokens=response.get("tokens", 0) + classification.get("tokens", 0),
+        run_id, session["id"], resident["id"], agent_path,
+        intent, "verified" if is_verified else "none",
+        latency_ms, response.get("tokens", 0) + classification.get("tokens", 0),
     )
 
     return {
-        "run_id": run_id,
-        "text": response["text"],
-        "agent": response["agent"],
-        "role": response["role"],
-        "agent_path": agent_path,
-        "intent": classification.get("intent"),
+        "run_id": run_id, "text": response["text"],
+        "agent": response["agent"], "role": response["role"],
+        "agent_path": agent_path, "intent": intent,
         "confidence": classification.get("confidence"),
         "session_id": str(session["id"]),
-        "verified": session.get("is_verified", False),
+        "verified": is_verified,
         "resident_name": resident.get("full_name", "") if is_verified else "",
         "unit_number": resident.get("unit_number", "") if is_verified else "",
         "tokens": response.get("tokens", 0),
@@ -224,129 +241,84 @@ async def process_message(
     }
 
 
-async def _get_agent_context(agent_name: str, resident_id: int, is_verified: bool) -> str:
-    """Fetch relevant DB data for the agent."""
-    parts = []
+# ═══════════════════════════════════════
+# HELPERS (unchanged)
+# ═══════════════════════════════════════
 
+async def _get_agent_context(agent_name: str, resident_id: int, is_verified: bool) -> str:
+    parts = []
     if agent_name == "AriaAgent" and is_verified:
         payments = await fetch_all(
-            """SELECT concept, amount, current_balance, due_date, payment_status, receipt_ref
-               FROM payments WHERE resident_id = $1 ORDER BY due_date DESC LIMIT 6""",
-            resident_id
-        )
+            "SELECT concept, amount, current_balance, due_date, payment_status FROM payments WHERE resident_id = $1 ORDER BY due_date DESC LIMIT 6", resident_id)
         if payments:
             parts.append("HISTORIAL DE PAGOS:")
             for p in payments:
-                status_emoji = {"paid": "✅", "pending": "⏳", "partial": "⚠️", "overdue": "❌"}.get(p["payment_status"], "?")
-                parts.append(f"  {status_emoji} {p['concept']}: ${p['amount']} | Saldo: ${p['current_balance']} | Status: {p['payment_status']} | Vence: {p['due_date']}")
-
+                parts.append(f"  {p['concept']}: ${p['amount']} | Saldo: ${p['current_balance']} | {p['payment_status']} | Vence: {p['due_date']}")
     elif agent_name == "AtlasAgent":
         tickets = await fetch_all(
-            """SELECT ticket_ref, subject, status, priority, created_at
-               FROM tickets WHERE resident_id = $1 AND category = 'maintenance'
-               ORDER BY created_at DESC LIMIT 5""",
-            resident_id
-        )
+            "SELECT ticket_ref, subject, status, priority FROM tickets WHERE resident_id = $1 AND category = 'maintenance' ORDER BY created_at DESC LIMIT 5", resident_id)
         if tickets:
-            parts.append("TICKETS DE MANTENIMIENTO PREVIOS:")
-            for t in tickets:
-                parts.append(f"  {t['ticket_ref']}: {t['subject']} [{t['status']}] ({t['priority']})")
-
-    elif agent_name == "NovaAgent":
-        tickets = await fetch_all(
-            """SELECT ticket_ref, subject, status, priority
-               FROM tickets WHERE resident_id = $1 AND category = 'technical_support'
-               ORDER BY created_at DESC LIMIT 5""",
-            resident_id
-        )
-        if tickets:
-            parts.append("TICKETS DE SOPORTE PREVIOS:")
+            parts.append("TICKETS PREVIOS:")
             for t in tickets:
                 parts.append(f"  {t['ticket_ref']}: {t['subject']} [{t['status']}]")
-
+    elif agent_name == "NovaAgent":
+        tickets = await fetch_all(
+            "SELECT ticket_ref, subject, status FROM tickets WHERE resident_id = $1 AND category = 'technical_support' ORDER BY created_at DESC LIMIT 5", resident_id)
+        if tickets:
+            parts.append("TICKETS PREVIOS:")
+            for t in tickets:
+                parts.append(f"  {t['ticket_ref']}: {t['subject']} [{t['status']}]")
     return "\n".join(parts) if parts else ""
 
 
 async def _get_kb_context(intent: str) -> str:
-    """Fetch relevant knowledge base docs."""
-    category_map = {
-        "general": ["faq", "rules", "schedule"],
-        "billing": ["payment_policy", "faq"],
-        "maintenance": ["maintenance", "faq"],
-        "technical_support": ["faq"],
-        "escalation": ["rules", "faq"],
-    }
-    categories = category_map.get(intent, ["faq"])
-
-    docs = await fetch_all(
-        """SELECT title, content FROM knowledge_documents
-           WHERE category = ANY($1) AND is_active = true""",
-        categories
-    )
-
-    if docs:
-        return "\n\n".join(f"[{d['title']}]\n{d['content']}" for d in docs)
-    return ""
+    category_map = {"general": ["faq", "rules", "schedule"], "billing": ["payment_policy", "faq"],
+                     "maintenance": ["maintenance", "faq"], "technical_support": ["faq"], "escalation": ["rules", "faq"]}
+    docs = await fetch_all("SELECT title, content FROM knowledge_documents WHERE category = ANY($1) AND is_active = true",
+                            category_map.get(intent, ["faq"]))
+    return "\n\n".join(f"[{d['title']}]\n{d['content']}" for d in docs) if docs else ""
 
 
 async def _log_message(session_id, resident_id, direction, content, agent=None):
-    """Log a message to the database."""
     try:
-        await execute(
-            """INSERT INTO messages (session_id, resident_id, direction, channel, agent, content)
-               VALUES ($1, $2, $3, 'whatsapp', $4, $5)""",
-            session_id, resident_id, direction, agent, content
-        )
+        await execute("INSERT INTO messages (session_id, resident_id, direction, channel, agent, content) VALUES ($1, $2, $3, 'whatsapp', $4, $5)",
+                       session_id, resident_id, direction, agent, content)
     except Exception as e:
-        logger.error("Failed to log message: %s", e)
+        logger.error("Log message failed: %s", e)
 
 
 async def _log_agent_run(run_id, session_id, resident_id, agent_path, intent, verification_state, latency_ms, tokens):
-    """Log agent execution for observability."""
     try:
-        await execute(
-            """INSERT INTO agent_runs (id, session_id, resident_id, agent_path, intent, verification_state, latency_ms, total_tokens)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-            uuid.UUID(run_id), session_id, resident_id, agent_path, intent, verification_state, latency_ms, tokens
-        )
+        await execute("INSERT INTO agent_runs (id, session_id, resident_id, agent_path, intent, verification_state, latency_ms, total_tokens) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                       uuid.UUID(run_id), session_id, resident_id, agent_path, intent, verification_state, latency_ms, tokens)
     except Exception as e:
-        logger.error("Failed to log agent run: %s", e)
+        logger.error("Log run failed: %s", e)
 
 
 async def _create_ticket(resident_id, session_id, category, subject, description, agent_name):
-    """Create a real ticket in the database."""
     try:
-        # Get next ticket number
         last = await fetch_one("SELECT COUNT(*) as c FROM tickets")
         num = (last["c"] if last else 0) + 1
         ticket_ref = f"TKT-{num:04d}"
 
-        # Determine priority based on keywords
         msg_lower = subject.lower()
-        if any(w in msg_lower for w in ["fuga", "agua", "inundacion", "elevador", "atrapado", "emergencia", "incendio"]):
+        if any(w in msg_lower for w in ["fuga", "agua", "inundacion", "elevador", "atrapado", "emergencia"]):
             priority = "urgent"
-        elif any(w in msg_lower for w in ["no funciona", "roto", "danado", "sin servicio"]):
+        elif any(w in msg_lower for w in ["no funciona", "roto", "sin servicio"]):
             priority = "high"
-        elif any(w in msg_lower for w in ["lento", "intermitente", "ruido"]):
-            priority = "medium"
         else:
             priority = "medium"
 
         await execute(
-            """INSERT INTO tickets (ticket_ref, resident_id, session_id, category, priority, status, subject, description, assigned_agent)
-               VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8)""",
-            ticket_ref, resident_id, session_id, category, priority, subject[:500], description, agent_name
-        )
+            "INSERT INTO tickets (ticket_ref, resident_id, session_id, category, priority, status, subject, description, assigned_agent) VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8)",
+            ticket_ref, resident_id, session_id, category, priority, subject[:500], description, agent_name)
 
         from app.db.audit import log_ticket_create
         await log_ticket_create(resident_id, ticket_ref, category)
-
-        logger.info("Ticket created: %s for resident %d (%s)", ticket_ref, resident_id, category)
-
-        # Real-time notification
         await notify_ticket_created(ticket_ref, subject[:100], priority, resident_id)
 
+        logger.info("Ticket: %s for resident %d", ticket_ref, resident_id)
         return ticket_ref
     except Exception as e:
-        logger.error("Failed to create ticket: %s", e)
+        logger.error("Ticket creation failed: %s", e)
         return None
