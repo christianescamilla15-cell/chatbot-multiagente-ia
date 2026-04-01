@@ -18,7 +18,7 @@ export function useChat() {
   const [verified, setVerified] = useState(false);
   const [sessionId, setSessionId] = useState("");
   const [phone, setPhone] = useState("+5215579605324");
-  const [residentName, setResidentName] = useState("Christian Hernandez Escamilla");
+  const [residentName, setResidentName] = useState("");
   const [stats, setStats] = useState(null);
   const [ratings, setRatings] = useState(() => { try { const s = localStorage.getItem("multiagente_ratings"); if (s) return JSON.parse(s); } catch {} return {}; });
   const bottomRef = useRef(null);
