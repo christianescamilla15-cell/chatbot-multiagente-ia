@@ -170,10 +170,14 @@ async def process_message(
         kb_context=kb_context,
     )
 
-    # ── Step 8b: Auto-create ticket for maintenance/support intents ──
+    # ── Step 8b: Create ticket only when agent confirms (contains "ticket creado" or similar) ──
     ticket_ref = None
     intent = classification.get("intent", "")
-    if intent in ("maintenance", "technical_support"):
+    resp_lower = response["text"].lower()
+    ticket_keywords = ["ticket creado", "ticket registrado", "tecnico en maximo", "tecnico en"]
+    agent_confirmed_ticket = any(kw in resp_lower for kw in ticket_keywords)
+
+    if intent in ("maintenance", "technical_support") and agent_confirmed_ticket:
         ticket_ref = await _create_ticket(
             resident_id=resident["id"],
             session_id=session["id"],
@@ -183,7 +187,6 @@ async def process_message(
             agent_name=agent.name,
         )
         if ticket_ref:
-            # Append ticket reference to the response
             response["text"] += f"\n\nTicket registrado: **{ticket_ref}**"
 
     # ── Step 9: Log message ──
