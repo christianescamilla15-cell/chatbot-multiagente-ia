@@ -157,6 +157,22 @@ async def process_message(
         kb_context=kb_context,
     )
 
+    # ── Step 8b: Auto-create ticket for maintenance/support intents ──
+    ticket_ref = None
+    intent = classification.get("intent", "")
+    if intent in ("maintenance", "technical_support"):
+        ticket_ref = await _create_ticket(
+            resident_id=resident["id"],
+            session_id=session["id"],
+            category=intent,
+            subject=message[:200],
+            description=message,
+            agent_name=agent.name,
+        )
+        if ticket_ref:
+            # Append ticket reference to the response
+            response["text"] += f"\n\nTicket registrado: **{ticket_ref}**"
+
     # ── Step 9: Log message ──
     await _log_message(session["id"], resident["id"], "inbound", message)
     await _log_message(session["id"], resident["id"], "outbound", response["text"], agent.name)
@@ -279,3 +295,38 @@ async def _log_agent_run(run_id, session_id, resident_id, agent_path, intent, ve
         )
     except Exception as e:
         logger.error("Failed to log agent run: %s", e)
+
+
+async def _create_ticket(resident_id, session_id, category, subject, description, agent_name):
+    """Create a real ticket in the database."""
+    try:
+        # Get next ticket number
+        last = await fetch_one("SELECT COUNT(*) as c FROM tickets")
+        num = (last["c"] if last else 0) + 1
+        ticket_ref = f"TKT-{num:04d}"
+
+        # Determine priority based on keywords
+        msg_lower = subject.lower()
+        if any(w in msg_lower for w in ["fuga", "agua", "inundacion", "elevador", "atrapado", "emergencia", "incendio"]):
+            priority = "urgent"
+        elif any(w in msg_lower for w in ["no funciona", "roto", "danado", "sin servicio"]):
+            priority = "high"
+        elif any(w in msg_lower for w in ["lento", "intermitente", "ruido"]):
+            priority = "medium"
+        else:
+            priority = "medium"
+
+        await execute(
+            """INSERT INTO tickets (ticket_ref, resident_id, session_id, category, priority, status, subject, description, assigned_agent)
+               VALUES ($1, $2, $3, $4, $5, 'open', $6, $7, $8)""",
+            ticket_ref, resident_id, session_id, category, priority, subject[:500], description, agent_name
+        )
+
+        from app.db.audit import log_ticket_create
+        await log_ticket_create(resident_id, ticket_ref, category)
+
+        logger.info("Ticket created: %s for resident %d (%s)", ticket_ref, resident_id, category)
+        return ticket_ref
+    except Exception as e:
+        logger.error("Failed to create ticket: %s", e)
+        return None
