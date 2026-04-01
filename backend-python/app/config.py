@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     TWILIO_SID: str = ""
     TWILIO_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = "whatsapp:+14155238886"
+    TWILIO_SMS_FROM: str = "+15186196324"
     ALLOWED_ORIGINS: str = "http://localhost:3001,https://chatbot-multiagente-ia.vercel.app"
     PORT: int = 8000
     MAX_MESSAGE_LENGTH: int = 2000

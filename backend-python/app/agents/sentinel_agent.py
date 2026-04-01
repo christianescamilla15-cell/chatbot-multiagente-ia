@@ -126,9 +126,9 @@ class SentinelAgent:
             remaining = record["max_attempts"] - record["attempts"] - 1
             return {"verified": False, "reason": "invalid_code", "attempts_remaining": remaining}
 
-    async def send_otp_whatsapp(self, phone: str, code: str, resident_name: str = "") -> bool:
-        """Send OTP code via WhatsApp using Twilio.
-        In demo mode, always sends to DEMO_PHONE regardless of resident's phone.
+    async def send_otp(self, phone: str, code: str, resident_name: str = "") -> bool:
+        """Send OTP code via SMS (primary) or WhatsApp (fallback).
+        In demo mode, always sends to DEMO_PHONE.
         """
         DEMO_PHONE = os.environ.get("DEMO_PHONE", "+5215579605324")
 
@@ -136,21 +136,39 @@ class SentinelAgent:
             logger.warning("Twilio not configured — OTP not sent")
             return False
 
-        # In demo: always send to the demo phone (Christian's WhatsApp)
         target_phone = DEMO_PHONE if phone != DEMO_PHONE else phone
+        name_line = f" para {resident_name}" if resident_name else ""
+        body = f"Codigo de verificacion{name_line}: {code}. Valido por 5 minutos."
 
         try:
             from twilio.rest import Client
             client = Client(settings.TWILIO_SID, settings.TWILIO_TOKEN)
 
-            name_line = f" para {resident_name}" if resident_name else ""
-            message = client.messages.create(
-                body=f"🔐 Codigo de verificacion{name_line}: *{code}*\n\nResidente: {phone}\nValido por 5 minutos. No compartas este codigo.",
+            # Try SMS first (more reliable)
+            if settings.TWILIO_SMS_FROM:
+                try:
+                    msg = client.messages.create(
+                        body=body,
+                        from_=settings.TWILIO_SMS_FROM,
+                        to=target_phone,
+                    )
+                    logger.info("OTP sent via SMS to %s: sid=%s", target_phone, msg.sid)
+                    return True
+                except Exception as sms_err:
+                    logger.warning("SMS failed, trying WhatsApp: %s", sms_err)
+
+            # Fallback to WhatsApp
+            msg = client.messages.create(
+                body=body,
                 from_=settings.TWILIO_WHATSAPP_FROM,
                 to=f"whatsapp:{target_phone}",
             )
-            logger.info("OTP sent via WhatsApp to %s (target: %s): sid=%s", phone, target_phone, message.sid)
+            logger.info("OTP sent via WhatsApp to %s: sid=%s", target_phone, msg.sid)
             return True
         except Exception as e:
-            logger.error("Failed to send OTP via WhatsApp: %s", e)
+            logger.error("Failed to send OTP: %s", e)
             return False
+
+    # Keep backward compatibility
+    async def send_otp_whatsapp(self, phone: str, code: str, resident_name: str = "") -> bool:
+        return await self.send_otp(phone, code, resident_name)
