@@ -1,28 +1,33 @@
 # Product Context
 
-## Product
-MultiAgente — AI-powered Resident Support System for Residencial Las Palmas
+## Project
+01-chatbot-multiagente
 
-## Users
-- 500 residents (tenants) who interact via chat and WhatsApp
-- Property administrators who monitor via Admin Panel
-- Maintenance staff who receive tickets
+## Type
+Monorepo
 
-## Critical Workflows
-1. Resident sends message -> Router classifies intent -> Specialized agent responds
-2. Sensitive requests (billing) -> SentinelAgent sends OTP via WhatsApp -> Verify -> AriaAgent responds with real data
-3. Maintenance/tech reports -> Agent responds + ticket auto-created in PostgreSQL
-4. Admin Panel -> view residents, tickets, payments, sessions, audit, agent runs
+## Detected Stack
+docker, node, postgres, python, react
 
-## Business Rules
-- Resident identity hidden until OTP verified (privacy)
-- Billing data ONLY after verification
-- Tickets auto-created for maintenance and tech support
-- All actions logged in audit trail
-- Session expires after 30 minutes
+## Modules
+- backend-python (61 files)
+- src (38 files)
+- server (8 files)
+- ai-memory (6 files)
+- ai-system (6 files)
+- specs (6 files)
+- scripts (2 files)
+- whatsapp-bot (1 files)
 
-## Non-Functional Priorities
-- Response time < 2 seconds
-- Zero data leaks between residents
-- Graceful degradation when Groq rate-limited
-- System must work without Redis (Render free tier)
+## Hotspots (large files — review carefully before changing)
+- App.jsx (87.7KB)
+- src/knowledge-base.js (78.0KB)
+- server/index.js (42.1KB)
+- src/components/admin/AdminPanel.jsx (33.4KB)
+- server/knowledge-base.js (22.8KB)
+
+## TODO: Fill in manually
+- What does this project do?
+- Who are the users?
+- What are the critical workflows?
+- What are the business constraints?

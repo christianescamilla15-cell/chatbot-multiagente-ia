@@ -125,3 +125,30 @@ app.include_router(whatsapp_router)
 # SMS inbound pipeline
 from app.routes.sms import router as sms_router
 app.include_router(sms_router)
+
+# WebSocket notifications
+from fastapi import WebSocket, WebSocketDisconnect
+from app.websocket.manager import manager as ws_manager
+from app.services.notification import get_notifications, get_unread_count, mark_read
+
+@app.websocket("/ws/notifications")
+async def ws_notifications(websocket: WebSocket):
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text('{"type":"pong"}')
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+
+@app.get("/api/notifications")
+async def api_notifications(limit: int = 20, unread: bool = False):
+    notes = await get_notifications(limit, unread)
+    count = await get_unread_count()
+    return {"notifications": notes, "unread_count": count}
+
+@app.post("/api/notifications/{nid}/read")
+async def api_read_notification(nid: int):
+    await mark_read(nid)
+    return {"status": "ok"}

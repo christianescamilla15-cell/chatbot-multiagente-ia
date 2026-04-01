@@ -17,6 +17,7 @@ from app.agents.nexus_agent import NexusAgent
 from app.agents.closure_agent import ClosureAgent
 from app.db.client import execute, fetch_one, fetch_all
 from app.db.audit import log_otp_send, log_otp_verify, log_session_create, log_escalation
+from app.services.notification import notify_ticket_created, notify_ticket_escalated
 
 logger = logging.getLogger(__name__)
 
@@ -338,6 +339,10 @@ async def _create_ticket(resident_id, session_id, category, subject, description
         await log_ticket_create(resident_id, ticket_ref, category)
 
         logger.info("Ticket created: %s for resident %d (%s)", ticket_ref, resident_id, category)
+
+        # Real-time notification
+        await notify_ticket_created(ticket_ref, subject[:100], priority, resident_id)
+
         return ticket_ref
     except Exception as e:
         logger.error("Failed to create ticket: %s", e)
