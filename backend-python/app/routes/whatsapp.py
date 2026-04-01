@@ -105,18 +105,15 @@ async def whatsapp_webhook(
             audio_bytes = download_twilio_media(MediaUrl0)
             message_text = transcribe_audio(audio_bytes)
             if not message_text:
-                send_whatsapp_response(phone, "No se pudo transcribir el audio. Intenta enviar un mensaje de texto.")
-                return Response(status_code=200)
+                return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response><Message>No se pudo transcribir el audio. Intenta con texto.</Message></Response>', media_type="application/xml")
             logger.info("Voice transcribed: %s", message_text[:100])
         except Exception as e:
             logger.error("Voice processing error: %s", e)
-            send_whatsapp_response(phone, "Error procesando audio. Intenta de nuevo.")
-            return Response(status_code=200)
+            return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response><Message>Error procesando audio. Intenta de nuevo.</Message></Response>', media_type="application/xml")
 
     # Case 2: Image/document (acknowledge only)
     elif num_media > 0 and MediaUrl0 and "audio" not in (MediaContentType0 or ""):
-        send_whatsapp_response(phone, "Recibi tu archivo. Por ahora solo proceso texto y notas de voz.")
-        return Response(status_code=200)
+        return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response><Message>Recibi tu archivo. Por ahora solo proceso texto y notas de voz.</Message></Response>', media_type="application/xml")
 
     # Case 3: Text message
     elif Body.strip():
@@ -131,15 +128,25 @@ async def whatsapp_webhook(
         result = await process_message(message=message_text, phone=phone)
         response_text = result.get("text", "No pude procesar tu mensaje.")
 
-        # Send response back via WhatsApp
-        send_whatsapp_response(phone, response_text)
-
         logger.info(
             "WhatsApp processed: phone=%s agent=%s intent=%s",
             phone, result.get("agent"), result.get("intent"),
         )
+
+        # Try Twilio API first (works outside sandbox window)
+        sent = send_whatsapp_response(phone, response_text)
+
+        # Always return TwiML as well (works within sandbox)
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>{response_text[:1600]}</Message>
+</Response>"""
+        return Response(content=twiml, media_type="application/xml")
+
     except Exception as e:
         logger.error("Orchestrator error for WhatsApp: %s", e)
-        send_whatsapp_response(phone, "Hubo un error procesando tu mensaje. Intenta de nuevo.")
-
-    return Response(status_code=200)
+        twiml = """<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>Hubo un error. Intenta de nuevo.</Message>
+</Response>"""
+        return Response(content=twiml, media_type="application/xml")
